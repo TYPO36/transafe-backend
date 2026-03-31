@@ -1,9 +1,11 @@
 package com.benmake.transafe.auth.service;
 
+import com.benmake.transafe.auth.cache.TokenCache;
 import com.benmake.transafe.auth.dto.LoginRequest;
 import com.benmake.transafe.auth.dto.RegisterRequest;
 import com.benmake.transafe.auth.dto.TokenResponse;
 import com.benmake.transafe.common.exception.BusinessException;
+import com.benmake.transafe.common.exception.ErrorCode;
 import com.benmake.transafe.user.entity.UserEntity;
 import com.benmake.transafe.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -26,25 +28,38 @@ public class AuthService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
+    private final TokenCache tokenCache;
 
     /**
      * 用户登录
+     * <p>
+     * 验证用户凭证，生成JWT Token并存储到Redis
+     * </p>
      */
     public TokenResponse login(LoginRequest request) {
         UserEntity user = userRepository.findByEmail(request.getAccount())
                 .or(() -> userRepository.findByPhone(request.getAccount()))
-                .orElseThrow(() -> new BusinessException("AUTH_FAILED", "用户不存在"));
+                .orElseThrow(() -> new BusinessException(ErrorCode.LOGIN_FAILED));
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
-            throw new BusinessException("AUTH_FAILED", "密码错误");
+            throw new BusinessException(ErrorCode.LOGIN_FAILED);
         }
 
         if (!"ACTIVE".equals(user.getStatus())) {
-            throw new BusinessException("ACCOUNT_DISABLED", "账户已被禁用");
+            throw new BusinessException(ErrorCode.ACCOUNT_DISABLED);
         }
 
+        // 生成Token
         String accessToken = jwtService.generateAccessToken(user.getId(), user.getEmail());
         String refreshToken = jwtService.generateRefreshToken(user.getId());
+
+        // 存储Token到Redis
+        String accessJti = jwtService.extractJti(accessToken);
+        String refreshJti = jwtService.extractJti(refreshToken);
+        tokenCache.storeAccessToken(user.getId(), accessJti);
+        tokenCache.storeRefreshToken(user.getId(), refreshJti);
+
+        log.info("用户登录成功: userId={}, email={}", user.getId(), user.getEmail());
 
         return TokenResponse.builder()
                 .accessToken(accessToken)
@@ -66,15 +81,15 @@ public class AuthService {
     public void register(RegisterRequest request) {
         // 校验邮箱或手机号
         if (request.getEmail() == null && request.getPhone() == null) {
-            throw new BusinessException("VALIDATION_ERROR", "邮箱和手机号至少填写一个");
+            throw new BusinessException(ErrorCode.PARAM_ERROR, "邮箱和手机号至少填写一个");
         }
 
         if (request.getEmail() != null && userRepository.existsByEmail(request.getEmail())) {
-            throw new BusinessException("EMAIL_EXISTS", "邮箱已被注册");
+            throw new BusinessException(ErrorCode.EMAIL_EXISTS);
         }
 
         if (request.getPhone() != null && userRepository.existsByPhone(request.getPhone())) {
-            throw new BusinessException("PHONE_EXISTS", "手机号已被注册");
+            throw new BusinessException(ErrorCode.PHONE_EXISTS);
         }
 
         // 创建用户
@@ -92,18 +107,39 @@ public class AuthService {
 
     /**
      * 刷新 Token
+     * <p>
+     * 验证Refresh Token是否在Redis中有效，生成新的Token
+     * </p>
      */
     public TokenResponse refreshToken(String refreshToken) {
         if (!jwtService.isRefreshTokenValid(refreshToken)) {
-            throw new BusinessException("INVALID_TOKEN", "Refresh Token 无效或已过期");
+            throw new BusinessException(ErrorCode.TOKEN_INVALID, "Refresh Token 无效或已过期");
         }
 
         Long userId = jwtService.extractUserId(refreshToken);
-        UserEntity user = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException("USER_NOT_FOUND", "用户不存在"));
+        String currentJti = jwtService.extractJti(refreshToken);
 
+        // 验证Refresh Token是否在Redis中存在
+        String storedJti = tokenCache.getRefreshTokenJti(userId);
+        if (storedJti == null || !storedJti.equals(currentJti)) {
+            throw new BusinessException(ErrorCode.TOKEN_REVOKED);
+        }
+
+        UserEntity user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        // 生成新Token
         String newAccessToken = jwtService.generateAccessToken(user.getId(), user.getEmail());
         String newRefreshToken = jwtService.generateRefreshToken(user.getId());
+
+        // 更新Redis中的Token
+        String newAccessJti = jwtService.extractJti(newAccessToken);
+        String newRefreshJti = jwtService.extractJti(newRefreshToken);
+        tokenCache.invalidateAllTokens(userId);
+        tokenCache.storeAccessToken(user.getId(), newAccessJti);
+        tokenCache.storeRefreshToken(user.getId(), newRefreshJti);
+
+        log.info("Token刷新成功: userId={}", userId);
 
         return TokenResponse.builder()
                 .accessToken(newAccessToken)
@@ -116,5 +152,18 @@ public class AuthService {
                         .membershipLevel(user.getMembershipLevel())
                         .build())
                 .build();
+    }
+
+    /**
+     * 用户登出
+     * <p>
+     * 清除Redis中用户的所有Token，使Token立即失效
+     * </p>
+     *
+     * @param userId 用户ID
+     */
+    public void logout(Long userId) {
+        tokenCache.invalidateAllTokens(userId);
+        log.info("用户登出成功: userId={}", userId);
     }
 }

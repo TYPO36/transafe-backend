@@ -1,4 +1,4 @@
-version: '3.8'
+#version: '3.8'
 
 services:
   # MySQL 8.0
@@ -13,7 +13,7 @@ services:
     ports:
       - "3306:3306"
     volumes:
-      - mysql_data:/var/lib/mysql
+      - ./data/mysql:/var/lib/mysql
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
@@ -28,11 +28,14 @@ services:
     ports:
       - "6379:6379"
     volumes:
-      - redis_data:/data
+      - ./data/redis:/data
     command: redis-server --appendonly yes
 
   # Elasticsearch 8.11 (带IK分词器)
   elasticsearch:
+    build:
+      context: ./elasticsearch
+      dockerfile: Dockerfile
     image: elasticsearch-ik:8.11.0
     container_name: transafe-es
     environment:
@@ -43,7 +46,7 @@ services:
       - "9200:9200"
       - "9300:9300"
     volumes:
-      - es_data:/usr/share/elasticsearch/data
+      - ./data/elasticsearch:/usr/share/elasticsearch/data
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
       interval: 30s
@@ -61,15 +64,9 @@ services:
       - "5672:5672"    # AMQP 端口
       - "15672:15672"  # 管理界面端口
     volumes:
-      - rabbitmq_data:/var/lib/rabbitmq
+      - ./data/rabbitmq:/var/lib/rabbitmq
     healthcheck:
       test: ["CMD", "rabbitmqctl", "status"]
       interval: 30s
       timeout: 10s
       retries: 5
-
-volumes:
-  mysql_data:
-  redis_data:
-  es_data:
-  rabbitmq_data:

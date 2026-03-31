@@ -82,3 +82,11 @@ jacoco.exec
 *.swo
 *~
 .node_modules/
+
+### Claude Code ###
+.claude/
+
+### Docker & Services ###
+data/
+elasticsearch/
+es-plugins/

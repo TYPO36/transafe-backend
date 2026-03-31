@@ -12,6 +12,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 import java.util.function.Function;
 
 /**
@@ -34,20 +35,28 @@ public class JwtService {
 
     /**
      * 生成 Access Token
+     * <p>
+     * 包含用户ID、邮箱和唯一JWT标识(JTI)
+     * </p>
      */
     public String generateAccessToken(Long userId, String email) {
         Map<String, Object> claims = new HashMap<>();
         claims.put("userId", userId);
         claims.put("email", email);
+        claims.put("jti", UUID.randomUUID().toString());
         return createToken(claims, email, jwtConfig.getExpiration());
     }
 
     /**
      * 生成 Refresh Token
+     * <p>
+     * 包含用户ID和唯一JWT标识(JTI)
+     * </p>
      */
     public String generateRefreshToken(Long userId) {
         Map<String, Object> claims = new HashMap<>();
         claims.put("userId", userId);
+        claims.put("jti", UUID.randomUUID().toString());
         return createToken(claims, String.valueOf(userId), jwtConfig.getRefreshExpiration());
     }
 
@@ -73,6 +82,13 @@ public class JwtService {
      */
     public Long extractUserId(String token) {
         return extractClaim(token, claims -> claims.get("userId", Long.class));
+    }
+
+    /**
+     * 从 Token 提取JWT唯一标识(JTI)
+     */
+    public String extractJti(String token) {
+        return extractClaim(token, claims -> claims.get("jti", String.class));
     }
 
     /**

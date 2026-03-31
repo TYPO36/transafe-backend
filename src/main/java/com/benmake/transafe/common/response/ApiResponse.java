@@ -1,5 +1,6 @@
 package com.benmake.transafe.common.response;
 
+import com.benmake.transafe.common.exception.ErrorCode;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -17,9 +18,19 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class ApiResponse<T> {
 
-    private boolean success;
-    private String code;
+    /**
+     * 响应码（0表示成功，其他表示失败）
+     */
+    private int code;
+
+    /**
+     * 响应消息
+     */
     private String message;
+
+    /**
+     * 响应数据
+     */
     private T data;
 
     /**
@@ -27,9 +38,8 @@ public class ApiResponse<T> {
      */
     public static <T> ApiResponse<T> success(T data) {
         return ApiResponse.<T>builder()
-                .success(true)
-                .code("SUCCESS")
-                .message("操作成功")
+                .code(ErrorCode.SUCCESS.getCode())
+                .message(ErrorCode.SUCCESS.getMessage())
                 .data(data)
                 .build();
     }
@@ -39,28 +49,39 @@ public class ApiResponse<T> {
      */
     public static <T> ApiResponse<T> success(String message, T data) {
         return ApiResponse.<T>builder()
-                .success(true)
-                .code("SUCCESS")
+                .code(ErrorCode.SUCCESS.getCode())
                 .message(message)
                 .data(data)
                 .build();
     }
 
     /**
-     * 失败响应
+     * 失败响应（使用错误码枚举）
      */
-    public static <T> ApiResponse<T> error(String code, String message) {
+    public static <T> ApiResponse<T> error(ErrorCode errorCode) {
         return ApiResponse.<T>builder()
-                .success(false)
-                .code(code)
+                .code(errorCode.getCode())
+                .message(errorCode.getMessage())
+                .build();
+    }
+
+    /**
+     * 失败响应（自定义消息）
+     */
+    public static <T> ApiResponse<T> error(ErrorCode errorCode, String message) {
+        return ApiResponse.<T>builder()
+                .code(errorCode.getCode())
                 .message(message)
                 .build();
     }
 
     /**
-     * 失败响应（默认错误码）
+     * 失败响应（自定义错误码）
      */
-    public static <T> ApiResponse<T> error(String message) {
-        return error("ERROR", message);
+    public static <T> ApiResponse<T> error(int code, String message) {
+        return ApiResponse.<T>builder()
+                .code(code)
+                .message(message)
+                .build();
     }
 }

@@ -1,6 +1,7 @@
 package com.benmake.transafe.quota.service;
 
 import com.benmake.transafe.common.exception.BusinessException;
+import com.benmake.transafe.common.exception.ErrorCode;
 import com.benmake.transafe.quota.dto.QuotaStatusResponse;
 import com.benmake.transafe.quota.entity.QuotaEntity;
 import com.benmake.transafe.quota.repository.QuotaRepository;
@@ -67,7 +68,7 @@ public class QuotaService {
         }
 
         if (quota.getDailyTranslationUsed() + charCount > quota.getDailyTranslationTotal()) {
-            throw new BusinessException("QUOTA_EXCEEDED", "翻译配额不足");
+            throw new BusinessException(ErrorCode.QUOTA_EXCEEDED);
         }
 
         quota.setDailyTranslationUsed(quota.getDailyTranslationUsed() + charCount);

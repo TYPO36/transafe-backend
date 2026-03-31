@@ -1,11 +1,13 @@
 package com.benmake.transafe.file.service;
 
 import com.benmake.transafe.common.exception.BusinessException;
-import com.benmake.transafe.file.client.FileUploadClient;
+import com.benmake.transafe.common.exception.ErrorCode;
+import com.benmake.transafe.file.client.MockFileUploadClient;
 import com.benmake.transafe.file.dto.FileUploadResponse;
 import com.benmake.transafe.quota.service.QuotaService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -24,8 +26,11 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class FileProxyService {
 
-    private final FileUploadClient fileUploadClient;
+    private final MockFileUploadClient fileUploadClient;
     private final QuotaService quotaService;
+
+    @Value("${file-storage.mock-enabled:true}")
+    private boolean mockEnabled;
 
     /**
      * 上传文件
@@ -33,7 +38,7 @@ public class FileProxyService {
     public FileUploadResponse uploadFile(MultipartFile file, Long userId) {
         // 检查存储空间
         if (!quotaService.checkStorageSpace(userId, file.getSize())) {
-            throw new BusinessException("STORAGE_EXCEEDED", "存储空间不足");
+            throw new BusinessException(ErrorCode.STORAGE_EXCEEDED);
         }
 
         FileUploadResponse result = fileUploadClient.uploadFile(file, userId);

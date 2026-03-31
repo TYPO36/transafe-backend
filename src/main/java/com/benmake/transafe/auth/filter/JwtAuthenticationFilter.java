@@ -1,6 +1,8 @@
 package com.benmake.transafe.auth.filter;
 
+import com.benmake.transafe.auth.cache.TokenCache;
 import com.benmake.transafe.auth.service.JwtService;
+import com.benmake.transafe.common.exception.ErrorCode;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -29,6 +31,7 @@ import java.util.Collections;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
+    private final TokenCache tokenCache;
 
     @Override
     protected void doFilterInternal(
@@ -51,8 +54,19 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             email = jwtService.extractEmail(jwt);
 
             if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+                // JWT签名验证
                 if (jwtService.isTokenValid(jwt, email)) {
                     Long userId = jwtService.extractUserId(jwt);
+                    String jti = jwtService.extractJti(jwt);
+
+                    // 验证Token是否在Redis中存在（实现Token撤销能力）
+                    if (!tokenCache.isAccessTokenValid(userId, jti)) {
+                        log.warn("Token不在Redis中或已被撤销: userId={}, jti={}", userId, jti);
+                        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                        response.setContentType("application/json;charset=UTF-8");
+                        response.getWriter().write("{\"code\":" + ErrorCode.TOKEN_REVOKED.getCode() + ",\"message\":\"" + ErrorCode.TOKEN_REVOKED.getMessage() + "\",\"data\":null}");
+                        return;
+                    }
 
                     UsernamePasswordAuthenticationToken authToken =
                             new UsernamePasswordAuthenticationToken(
@@ -61,6 +75,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
                     authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                     SecurityContextHolder.getContext().setAuthentication(authToken);
+
+                    log.debug("JWT认证成功: userId={}, jti={}", userId, jti);
                 }
             }
         } catch (Exception e) {

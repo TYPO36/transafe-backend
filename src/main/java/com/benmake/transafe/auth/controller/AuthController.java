@@ -1,19 +1,22 @@
 package com.benmake.transafe.auth.controller;
 
 import com.benmake.transafe.auth.dto.LoginRequest;
+import com.benmake.transafe.auth.dto.RefreshTokenRequest;
 import com.benmake.transafe.auth.dto.RegisterRequest;
 import com.benmake.transafe.auth.dto.TokenResponse;
 import com.benmake.transafe.auth.service.AuthService;
+import com.benmake.transafe.common.exception.ErrorCode;
 import com.benmake.transafe.common.response.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.Map;
 
 /**
  * 认证控制器
@@ -48,9 +51,21 @@ public class AuthController {
     @Operation(summary = "刷新Token", description = "使用refreshToken获取新的访问Token")
     @SecurityRequirements
     @PostMapping("/refresh")
-    public ResponseEntity<ApiResponse<TokenResponse>> refreshToken(@RequestBody Map<String, String> request) {
-        String refreshToken = request.get("refreshToken");
-        TokenResponse response = authService.refreshToken(refreshToken);
+    public ResponseEntity<ApiResponse<TokenResponse>> refreshToken(@Valid @RequestBody RefreshTokenRequest request) {
+        TokenResponse response = authService.refreshToken(request.getRefreshToken());
         return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @Operation(summary = "用户登出", description = "清除用户Token，使Token立即失效")
+    @SecurityRequirement(name = "Bearer")
+    @PostMapping("/logout")
+    public ResponseEntity<ApiResponse<Void>> logout(Authentication authentication) {
+        if (authentication == null || authentication.getPrincipal() == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.error(ErrorCode.UNAUTHORIZED));
+        }
+        Long userId = (Long) authentication.getPrincipal();
+        authService.logout(userId);
+        return ResponseEntity.ok(ApiResponse.success("登出成功", null));
     }
 }

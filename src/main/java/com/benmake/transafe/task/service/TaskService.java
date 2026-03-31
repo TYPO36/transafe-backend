@@ -1,6 +1,7 @@
 package com.benmake.transafe.task.service;
 
 import com.benmake.transafe.common.exception.BusinessException;
+import com.benmake.transafe.common.exception.ErrorCode;
 import com.benmake.transafe.file.service.FileProxyService;
 import com.benmake.transafe.quota.service.QuotaService;
 import com.benmake.transafe.task.dto.TaskCreateRequest;
@@ -66,7 +67,7 @@ public class TaskService {
     public TaskResponse getTask(String taskId, Long userId) {
         TaskEntity task = taskRepository.findByTaskId(taskId)
                 .filter(t -> t.getUserId().equals(userId))
-                .orElseThrow(() -> new BusinessException("TASK_NOT_FOUND", "任务不存在"));
+                .orElseThrow(() -> new BusinessException(ErrorCode.TASK_NOT_FOUND));
 
         return toResponse(task);
     }

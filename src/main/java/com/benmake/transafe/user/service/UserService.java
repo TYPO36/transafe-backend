@@ -1,6 +1,7 @@
 package com.benmake.transafe.user.service;
 
 import com.benmake.transafe.common.exception.BusinessException;
+import com.benmake.transafe.common.exception.ErrorCode;
 import com.benmake.transafe.user.dto.UserInfoResponse;
 import com.benmake.transafe.user.entity.UserEntity;
 import com.benmake.transafe.user.repository.UserRepository;
@@ -25,7 +26,7 @@ public class UserService {
      */
     public UserInfoResponse getUserInfo(Long userId) {
         UserEntity user = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException("USER_NOT_FOUND", "用户不存在"));
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
         return UserInfoResponse.builder()
                 .userId(user.getId())
@@ -45,8 +46,9 @@ public class UserService {
     @Transactional
     public void updateNickname(Long userId, String nickname) {
         UserEntity user = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException("USER_NOT_FOUND", "用户不存在"));
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
         user.setNickname(nickname);
+        userRepository.save(user);
     }
 
     /**
@@ -55,7 +57,8 @@ public class UserService {
     @Transactional
     public void updateAvatar(Long userId, String avatar) {
         UserEntity user = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException("USER_NOT_FOUND", "用户不存在"));
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
         user.setAvatar(avatar);
+        userRepository.save(user);
     }
 }

@@ -12,8 +12,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * 全局异常处理器
@@ -42,10 +41,12 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(AuthenticationException.class)
     public ResponseEntity<ApiResponse<Void>> handleAuthenticationException(AuthenticationException e) {
         log.warn("认证异常: {}", e.getMessage());
-        String message = e instanceof BadCredentialsException ? "用户名或密码错误" : "认证失败";
+        ErrorCode errorCode = e instanceof BadCredentialsException
+                ? ErrorCode.LOGIN_FAILED
+                : ErrorCode.AUTH_FAILED;
         return ResponseEntity
                 .status(HttpStatus.UNAUTHORIZED)
-                .body(ApiResponse.error("AUTH_FAILED", message));
+                .body(ApiResponse.error(errorCode));
     }
 
     /**
@@ -56,25 +57,26 @@ public class GlobalExceptionHandler {
         log.warn("权限拒绝: {}", e.getMessage());
         return ResponseEntity
                 .status(HttpStatus.FORBIDDEN)
-                .body(ApiResponse.error("ACCESS_DENIED", "无权限访问"));
+                .body(ApiResponse.error(ErrorCode.ACCESS_DENIED));
     }
 
     /**
      * 处理参数校验异常
      */
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<ApiResponse<Map<String, String>>> handleValidationException(
-            MethodArgumentNotValidException e) {
-        Map<String, String> errors = new HashMap<>();
-        e.getBindingResult().getAllErrors().forEach(error -> {
-            String fieldName = ((FieldError) error).getField();
-            String errorMessage = error.getDefaultMessage();
-            errors.put(fieldName, errorMessage);
-        });
-        log.warn("参数校验失败: {}", errors);
+    public ResponseEntity<ApiResponse<Void>> handleValidationException(MethodArgumentNotValidException e) {
+        String errorMessage = e.getBindingResult().getAllErrors().stream()
+                .map(error -> {
+                    String fieldName = ((FieldError) error).getField();
+                    String message = error.getDefaultMessage();
+                    return fieldName + ": " + message;
+                })
+                .collect(Collectors.joining("; "));
+
+        log.warn("参数校验失败: {}", errorMessage);
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
-                .body(ApiResponse.error("VALIDATION_ERROR", "参数校验失败"));
+                .body(ApiResponse.error(ErrorCode.PARAM_ERROR, errorMessage));
     }
 
     /**
@@ -85,6 +87,6 @@ public class GlobalExceptionHandler {
         log.error("系统异常: ", e);
         return ResponseEntity
                 .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiResponse.error("SYSTEM_ERROR", "系统异常，请稍后重试"));
+                .body(ApiResponse.error(ErrorCode.SYSTEM_ERROR));
     }
 }

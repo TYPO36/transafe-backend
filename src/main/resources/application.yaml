@@ -48,6 +48,7 @@ jwt:
 # 文件上传服务
 file-storage:
   url: ${FILE_STORAGE_URL:http://localhost:8081}
+  mock-enabled: true
 
 # RabbitMQ 队列
 rabbitmq:
