@@ -2,6 +2,8 @@ package com.benmake.transafe.document.repository;
 
 import com.benmake.transafe.document.entity.DocumentEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -55,4 +57,13 @@ public interface DocumentRepository extends JpaRepository<DocumentEntity, Long> 
      * @return 是否存在
      */
     boolean existsByFileId(String fileId);
+
+    /**
+     * 统计根文档下各状态的文档数量
+     *
+     * @param rootId 根文档fileId
+     * @param parseStatus 解析状态
+     * @return 文档数量
+     */
+    long countByRootIdAndParseStatus(String rootId, String parseStatus);
 }

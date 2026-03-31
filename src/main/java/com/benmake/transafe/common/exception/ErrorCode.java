@@ -37,7 +37,10 @@ public enum ErrorCode {
     // 业务错误 4xxx
     TASK_NOT_FOUND(4000, "任务不存在"),
     STORAGE_EXCEEDED(4001, "存储空间不足"),
-    QUOTA_EXCEEDED(4002, "翻译配额不足");
+    QUOTA_EXCEEDED(4002, "翻译配额不足"),
+    FILE_NOT_FOUND(4003, "文件不存在"),
+    FILE_TYPE_NOT_SUPPORTED(4004, "不支持的文件类型"),
+    FILE_TOO_LARGE(4005, "文件大小超出限制");
 
     private final int code;
     private final String message;

@@ -5,7 +5,6 @@ import com.benmake.transafe.auth.dto.RefreshTokenRequest;
 import com.benmake.transafe.auth.dto.RegisterRequest;
 import com.benmake.transafe.auth.dto.TokenResponse;
 import com.benmake.transafe.auth.service.AuthService;
-import com.benmake.transafe.common.exception.ErrorCode;
 import com.benmake.transafe.common.response.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -13,7 +12,6 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
@@ -60,12 +58,7 @@ public class AuthController {
     @SecurityRequirement(name = "Bearer")
     @PostMapping("/logout")
     public ResponseEntity<ApiResponse<Void>> logout(Authentication authentication) {
-        if (authentication == null || authentication.getPrincipal() == null) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(ApiResponse.error(ErrorCode.UNAUTHORIZED));
-        }
-        Long userId = (Long) authentication.getPrincipal();
-        authService.logout(userId);
+        authService.logout(authentication);
         return ResponseEntity.ok(ApiResponse.success("登出成功", null));
     }
 }

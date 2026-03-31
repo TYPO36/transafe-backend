@@ -45,10 +45,10 @@ jwt:
   expiration: 86400000           # 24小时
   refresh-expiration: 604800000  # 7天
 
-# 文件上传服务
+# 文件存储服务
 file-storage:
-  url: ${FILE_STORAGE_URL:http://localhost:8081}
-  mock-enabled: true
+  type: local
+  local-path: ${FILE_STORAGE_PATH:./files}
 
 # RabbitMQ 队列
 rabbitmq:

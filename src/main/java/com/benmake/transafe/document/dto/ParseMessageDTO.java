@@ -76,4 +76,9 @@ public class ParseMessageDTO implements Serializable {
      * 时间戳
      */
     private LocalDateTime timestamp;
+
+    /**
+     * 用户ID
+     */
+    private Long userId;
 }

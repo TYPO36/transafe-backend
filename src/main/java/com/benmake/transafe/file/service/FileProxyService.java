@@ -1,91 +1,81 @@
 package com.benmake.transafe.file.service;
 
-import com.benmake.transafe.common.exception.BusinessException;
-import com.benmake.transafe.common.exception.ErrorCode;
-import com.benmake.transafe.file.client.MockFileUploadClient;
+import com.benmake.transafe.file.dto.FileInfoResponse;
 import com.benmake.transafe.file.dto.FileUploadResponse;
-import com.benmake.transafe.quota.service.QuotaService;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
-import org.springframework.http.ResponseEntity;
-import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.Map;
 
 /**
- * 文件代理服务
+ * 文件代理服务接口
  *
  * @author TYPO
- * @since 2026-03-30
+ * @since 2026-03-31
  */
-@Slf4j
-@Service
-@RequiredArgsConstructor
-public class FileProxyService {
-
-    private final MockFileUploadClient fileUploadClient;
-    private final QuotaService quotaService;
-
-    @Value("${file-storage.mock-enabled:true}")
-    private boolean mockEnabled;
+public interface FileProxyService {
 
     /**
      * 上传文件
+     *
+     * @param file 上传的文件
+     * @param userId 用户ID
+     * @return 上传响应
      */
-    public FileUploadResponse uploadFile(MultipartFile file, Long userId) {
-        // 检查存储空间
-        if (!quotaService.checkStorageSpace(userId, file.getSize())) {
-            throw new BusinessException(ErrorCode.STORAGE_EXCEEDED);
-        }
-
-        FileUploadResponse result = fileUploadClient.uploadFile(file, userId);
-
-        // 更新存储使用量
-        quotaService.updateStorageUsed(userId, file.getSize());
-
-        log.info("用户 {} 上传文件成功: fileId={}, fileName={}", userId, result.getFileId(), result.getFileName());
-        return result;
-    }
+    FileUploadResponse uploadFile(MultipartFile file, Long userId);
 
     /**
      * 下载文件
+     *
+     * @param fileId 文件ID
+     * @param userId 用户ID
+     * @return 文件资源
      */
-    public ResponseEntity<Resource> downloadFile(String fileId, Long userId) {
-        return fileUploadClient.downloadFile(fileId);
-    }
+    Resource downloadFile(String fileId, Long userId);
 
     /**
      * 获取文件信息
+     *
+     * @param fileId 文件ID
+     * @param userId 用户ID
+     * @return 文件信息
      */
-    public Map<String, Object> getFileInfo(String fileId) {
-        return fileUploadClient.getFileInfo(fileId);
-    }
+    FileInfoResponse getFileInfo(String fileId, Long userId);
 
     /**
      * 获取文件列表
+     *
+     * @param userId 用户ID
+     * @param page 页码
+     * @param size 每页数量
+     * @return 分页文件列表
      */
-    public Map<String, Object> listFiles(Long userId, int page, int size) {
-        return fileUploadClient.listFiles(userId, page, size);
-    }
+    Map<String, Object> listFiles(Long userId, int page, int size);
 
     /**
      * 删除文件
+     *
+     * @param fileId 文件ID
+     * @param userId 用户ID
      */
-    public void deleteFile(String fileId, Long userId) {
-        // 获取文件信息
-        Map<String, Object> fileInfo = fileUploadClient.getFileInfo(fileId);
-        Object fileSizeObj = fileInfo.get("fileSize");
-        Long fileSize = fileSizeObj instanceof Number ? ((Number) fileSizeObj).longValue() : 0L;
+    void deleteFile(String fileId, Long userId);
 
-        // 删除文件
-        fileUploadClient.deleteFile(fileId);
+    /**
+     * 更新文件信息
+     *
+     * @param fileId 文件ID
+     * @param userId 用户ID
+     * @param newFileName 新文件名
+     * @return 文件信息
+     */
+    FileInfoResponse updateFileInfo(String fileId, Long userId, String newFileName);
 
-        // 更新存储使用量
-        quotaService.updateStorageUsed(userId, -fileSize);
-
-        log.info("用户 {} 删除文件成功: fileId={}", userId, fileId);
-    }
+    /**
+     * 获取文件名（用于下载）
+     *
+     * @param fileId 文件ID
+     * @param userId 用户ID
+     * @return 文件名
+     */
+    String getFileName(String fileId, Long userId);
 }

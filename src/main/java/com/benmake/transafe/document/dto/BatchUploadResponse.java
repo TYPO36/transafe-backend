@@ -21,6 +21,11 @@ import java.util.List;
 public class BatchUploadResponse {
 
     /**
+     * 根文档ID（用于查询解析进度）
+     */
+    private String rootId;
+
+    /**
      * 总文件数
      */
     private Integer total;

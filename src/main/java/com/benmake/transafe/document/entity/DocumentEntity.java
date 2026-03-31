@@ -16,6 +16,7 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "document", indexes = {
     @Index(name = "idx_file_id", columnList = "file_id", unique = true),
+    @Index(name = "idx_user_id", columnList = "user_id"),
     @Index(name = "idx_root_id", columnList = "root_id"),
     @Index(name = "idx_parent_id", columnList = "parent_id"),
     @Index(name = "idx_parse_status", columnList = "parse_status"),
@@ -39,6 +40,12 @@ public class DocumentEntity {
      */
     @Column(name = "parent_id", length = 64)
     private String parentId;
+
+    /**
+     * 用户ID
+     */
+    @Column(name = "user_id", nullable = false)
+    private Long userId;
 
     /**
      * 根文档file_id，所有关联文档指向顶层

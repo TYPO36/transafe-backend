@@ -15,9 +15,6 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.util.ArrayList;
-import java.util.List;
-
 /**
  * 文档控制器
  *
@@ -43,18 +40,7 @@ public class DocumentController {
             @RequestParam("file") MultipartFile file,
             @Parameter(hidden = true) @AuthenticationPrincipal Long userId) {
 
-        String fileName = file.getOriginalFilename();
-        String fileType = getFileType(fileName);
-
-        DocumentDTO result = documentService.createDocument(
-                fileName,
-                file.getSize(),
-                null, // storagePath - 由存储服务返回后更新
-                fileType,
-                userId,
-                false // isVip - 需要根据用户信息判断
-        );
-
+        DocumentDTO result = documentService.uploadAndCreateDocument(file, userId, false);
         return ResponseEntity.ok(ApiResponse.success(result));
     }
 
@@ -67,43 +53,7 @@ public class DocumentController {
             @RequestParam("files") MultipartFile[] files,
             @Parameter(hidden = true) @AuthenticationPrincipal Long userId) {
 
-        List<BatchUploadResponse.UploadItem> items = new ArrayList<>();
-        int success = 0;
-        int failed = 0;
-
-        for (MultipartFile file : files) {
-            try {
-                String fileName = file.getOriginalFilename();
-                String fileType = getFileType(fileName);
-
-                DocumentDTO doc = documentService.createDocument(
-                        fileName,
-                        file.getSize(),
-                        null,
-                        fileType,
-                        userId,
-                        false
-                );
-
-                items.add(BatchUploadResponse.UploadItem.builder()
-                        .fileId(doc.getFileId())
-                        .fileName(doc.getFileName())
-                        .status(doc.getParseStatus())
-                        .build());
-                success++;
-            } catch (Exception e) {
-                log.error("批量上传失败: fileName={}", file.getOriginalFilename(), e);
-                failed++;
-            }
-        }
-
-        BatchUploadResponse response = BatchUploadResponse.builder()
-                .total(files.length)
-                .success(success)
-                .failed(failed)
-                .items(items)
-                .build();
-
+        BatchUploadResponse response = documentService.batchUploadAndCreateDocument(files, userId, false);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
@@ -171,13 +121,14 @@ public class DocumentController {
     }
 
     /**
-     * 获取文件类型
+     * 获取解析进度
      */
-    private String getFileType(String fileName) {
-        if (fileName == null || fileName.isEmpty()) {
-            return "";
-        }
-        int lastDot = fileName.lastIndexOf('.');
-        return lastDot > 0 ? fileName.substring(lastDot + 1).toLowerCase() : "";
+    @Operation(summary = "获取解析进度", description = "根据根文档ID查询解析进度")
+    @GetMapping("/progress/{rootId}")
+    public ResponseEntity<ApiResponse<ParseProgressDTO>> getParseProgress(
+            @Parameter(description = "根文档ID") @PathVariable String rootId) {
+
+        ParseProgressDTO result = documentService.getParseProgress(rootId);
+        return ResponseEntity.ok(ApiResponse.success(result));
     }
 }
