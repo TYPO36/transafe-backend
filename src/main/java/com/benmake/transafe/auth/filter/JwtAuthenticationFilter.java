@@ -41,7 +41,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         final String authHeader = request.getHeader("Authorization");
         final String jwt;
-        final String email;
+        final String username;
 
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             filterChain.doFilter(request, response);
@@ -51,11 +51,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         jwt = authHeader.substring(7);
 
         try {
-            email = jwtService.extractEmail(jwt);
+            username = jwtService.extractUsername(jwt);
 
-            if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+            if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
                 // JWT签名验证
-                if (jwtService.isTokenValid(jwt, email)) {
+                if (jwtService.isTokenValid(jwt, username)) {
                     Long userId = jwtService.extractUserId(jwt);
                     String jti = jwtService.extractJti(jwt);
 

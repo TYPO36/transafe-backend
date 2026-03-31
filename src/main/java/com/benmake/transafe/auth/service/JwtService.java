@@ -19,7 +19,7 @@ import java.util.function.Function;
  * JWT 服务
  *
  * @author TYPO
- * @since 2026-03-30
+ * @since 2026-03-31
  */
 @Slf4j
 @Service
@@ -36,15 +36,19 @@ public class JwtService {
     /**
      * 生成 Access Token
      * <p>
-     * 包含用户ID、邮箱和唯一JWT标识(JTI)
+     * 包含用户ID、用户名和唯一JWT标识(JTI)
      * </p>
+     *
+     * @param userId   用户ID
+     * @param username 用户名
+     * @return JWT Token
      */
-    public String generateAccessToken(Long userId, String email) {
+    public String generateAccessToken(Long userId, String username) {
         Map<String, Object> claims = new HashMap<>();
         claims.put("userId", userId);
-        claims.put("email", email);
+        claims.put("username", username);
         claims.put("jti", UUID.randomUUID().toString());
-        return createToken(claims, email, jwtConfig.getExpiration());
+        return createToken(claims, username, jwtConfig.getExpiration());
     }
 
     /**
@@ -52,6 +56,9 @@ public class JwtService {
      * <p>
      * 包含用户ID和唯一JWT标识(JTI)
      * </p>
+     *
+     * @param userId 用户ID
+     * @return Refresh Token
      */
     public String generateRefreshToken(Long userId) {
         Map<String, Object> claims = new HashMap<>();
@@ -71,14 +78,20 @@ public class JwtService {
     }
 
     /**
-     * 从 Token 提取邮箱
+     * 从 Token 提取用户名（subject）
+     *
+     * @param token JWT Token
+     * @return 用户名
      */
-    public String extractEmail(String token) {
+    public String extractUsername(String token) {
         return extractClaim(token, Claims::getSubject);
     }
 
     /**
      * 从 Token 提取用户ID
+     *
+     * @param token JWT Token
+     * @return 用户ID
      */
     public Long extractUserId(String token) {
         return extractClaim(token, claims -> claims.get("userId", Long.class));
@@ -86,6 +99,9 @@ public class JwtService {
 
     /**
      * 从 Token 提取JWT唯一标识(JTI)
+     *
+     * @param token JWT Token
+     * @return JTI
      */
     public String extractJti(String token) {
         return extractClaim(token, claims -> claims.get("jti", String.class));
@@ -93,6 +109,10 @@ public class JwtService {
 
     /**
      * 提取指定声明
+     *
+     * @param token         JWT Token
+     * @param claimsResolver 声明解析器
+     * @return 声明值
      */
     public <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
         final Claims claims = extractAllClaims(token);
@@ -109,11 +129,15 @@ public class JwtService {
 
     /**
      * 验证 Token 是否有效
+     *
+     * @param token    JWT Token
+     * @param username 用户名
+     * @return 是否有效
      */
-    public boolean isTokenValid(String token, String email) {
+    public boolean isTokenValid(String token, String username) {
         try {
-            final String tokenEmail = extractEmail(token);
-            return (tokenEmail.equals(email) && !isTokenExpired(token));
+            final String tokenUsername = extractUsername(token);
+            return (tokenUsername.equals(username) && !isTokenExpired(token));
         } catch (Exception e) {
             log.warn("Token 验证失败: {}", e.getMessage());
             return false;
@@ -122,6 +146,9 @@ public class JwtService {
 
     /**
      * 验证 Refresh Token 是否有效
+     *
+     * @param token Refresh Token
+     * @return 是否有效
      */
     public boolean isRefreshTokenValid(String token) {
         try {

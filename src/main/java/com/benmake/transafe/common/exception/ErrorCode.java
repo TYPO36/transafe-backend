@@ -31,6 +31,8 @@ public enum ErrorCode {
     USER_NOT_FOUND(3000, "用户不存在"),
     EMAIL_EXISTS(3001, "邮箱已被注册"),
     PHONE_EXISTS(3002, "手机号已被注册"),
+    USERNAME_EXISTS(3003, "用户名已被注册"),
+    USERNAME_NOT_FOUND(3004, "用户名不存在"),
 
     // 业务错误 4xxx
     TASK_NOT_FOUND(4000, "任务不存在"),

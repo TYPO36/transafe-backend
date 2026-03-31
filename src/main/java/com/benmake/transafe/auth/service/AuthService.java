@@ -18,7 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
  * 认证服务
  *
  * @author TYPO
- * @since 2026-03-30
+ * @since 2026-03-31
  */
 @Slf4j
 @Service
@@ -33,12 +33,11 @@ public class AuthService {
     /**
      * 用户登录
      * <p>
-     * 验证用户凭证，生成JWT Token并存储到Redis
+     * 通过用户名和密码验证用户凭证，生成JWT Token并存储到Redis
      * </p>
      */
     public TokenResponse login(LoginRequest request) {
-        UserEntity user = userRepository.findByEmail(request.getAccount())
-                .or(() -> userRepository.findByPhone(request.getAccount()))
+        UserEntity user = userRepository.findByUsername(request.getUsername())
                 .orElseThrow(() -> new BusinessException(ErrorCode.LOGIN_FAILED));
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
@@ -50,7 +49,7 @@ public class AuthService {
         }
 
         // 生成Token
-        String accessToken = jwtService.generateAccessToken(user.getId(), user.getEmail());
+        String accessToken = jwtService.generateAccessToken(user.getId(), user.getUsername());
         String refreshToken = jwtService.generateRefreshToken(user.getId());
 
         // 存储Token到Redis
@@ -59,7 +58,7 @@ public class AuthService {
         tokenCache.storeAccessToken(user.getId(), accessJti);
         tokenCache.storeRefreshToken(user.getId(), refreshJti);
 
-        log.info("用户登录成功: userId={}, email={}", user.getId(), user.getEmail());
+        log.info("用户登录成功: userId={}, username={}", user.getId(), user.getUsername());
 
         return TokenResponse.builder()
                 .accessToken(accessToken)
@@ -76,33 +75,42 @@ public class AuthService {
 
     /**
      * 用户注册
+     * <p>
+     * 通过用户名和密码注册，邮箱和手机号可选
+     * </p>
      */
     @Transactional
     public void register(RegisterRequest request) {
-        // 校验邮箱或手机号
-        if (request.getEmail() == null && request.getPhone() == null) {
-            throw new BusinessException(ErrorCode.PARAM_ERROR, "邮箱和手机号至少填写一个");
+        // 校验用户名唯一性
+        if (userRepository.existsByUsername(request.getUsername())) {
+            throw new BusinessException(ErrorCode.USERNAME_EXISTS);
         }
 
-        if (request.getEmail() != null && userRepository.existsByEmail(request.getEmail())) {
+        // 校验邮箱唯一性（如果提供了邮箱）
+        if (request.getEmail() != null && !request.getEmail().isBlank()
+                && userRepository.existsByEmail(request.getEmail())) {
             throw new BusinessException(ErrorCode.EMAIL_EXISTS);
         }
 
-        if (request.getPhone() != null && userRepository.existsByPhone(request.getPhone())) {
+        // 校验手机号唯一性（如果提供了手机号）
+        if (request.getPhone() != null && !request.getPhone().isBlank()
+                && userRepository.existsByPhone(request.getPhone())) {
             throw new BusinessException(ErrorCode.PHONE_EXISTS);
         }
 
         // 创建用户
         UserEntity user = new UserEntity();
+        user.setUsername(request.getUsername());
+        user.setPassword(passwordEncoder.encode(request.getPassword()));
         user.setEmail(request.getEmail());
         user.setPhone(request.getPhone());
-        user.setPassword(passwordEncoder.encode(request.getPassword()));
-        user.setNickname(request.getEmail() != null ? request.getEmail().split("@")[0] : request.getPhone());
+        user.setNickname(request.getUsername());
         user.setMembershipLevel(0);
         user.setStatus("ACTIVE");
 
         userRepository.save(user);
-        log.info("用户注册成功: email={}, phone={}", request.getEmail(), request.getPhone());
+        log.info("用户注册成功: username={}, email={}, phone={}",
+                request.getUsername(), request.getEmail(), request.getPhone());
     }
 
     /**
@@ -129,7 +137,7 @@ public class AuthService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
         // 生成新Token
-        String newAccessToken = jwtService.generateAccessToken(user.getId(), user.getEmail());
+        String newAccessToken = jwtService.generateAccessToken(user.getId(), user.getUsername());
         String newRefreshToken = jwtService.generateRefreshToken(user.getId());
 
         // 更新Redis中的Token
