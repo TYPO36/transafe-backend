@@ -43,13 +43,22 @@ public class DocumentServiceImpl implements DocumentService {
     @Override
     @Transactional
     public DocumentDTO createDocumentByFileId(String fileId, Long userId, boolean isVip) {
-        return doCreateDocument(fileId, null, userId, isVip);
+        return doCreateDocument(fileId, null, userId, isVip, null, null, null, null);
     }
 
     @Override
     @Transactional
     public DocumentDTO createDocumentByFileId(String fileId, Long userId, boolean isVip, String rootId) {
-        return doCreateDocument(fileId, rootId, userId, isVip);
+        return doCreateDocument(fileId, rootId, userId, isVip, null, null, null, null);
+    }
+
+    /**
+     * 使用完整文件元数据创建文档
+     */
+    @Transactional
+    public DocumentDTO createDocumentWithFile(String fileId, Long userId, boolean isVip, String rootId,
+            String fileName, Long fileSize, String fileType, String storagePath) {
+        return doCreateDocument(fileId, rootId, userId, isVip, fileName, fileSize, fileType, storagePath);
     }
 
     /**
@@ -59,13 +68,22 @@ public class DocumentServiceImpl implements DocumentService {
      * @param rootId 根文档ID
      * @param userId 用户ID
      * @param isVip 是否为VIP
+     * @param fileName 文件名（可选）
+     * @param fileSize 文件大小（可选）
+     * @param fileType 文件类型（可选）
+     * @param storagePath 存储路径（可选）
      * @return 文档DTO
      */
-    private DocumentDTO doCreateDocument(String fileId, String rootId, Long userId, boolean isVip) {
+    private DocumentDTO doCreateDocument(String fileId, String rootId, Long userId, boolean isVip,
+            String fileName, Long fileSize, String fileType, String storagePath) {
         LocalDateTime now = LocalDateTime.now();
         DocumentEntity doc = new DocumentEntity();
         doc.setFileId(fileId);
         doc.setUserId(userId);
+        doc.setFileName(fileName);
+        doc.setFileSize(fileSize);
+        doc.setFileType(fileType);
+        doc.setStoragePath(storagePath);
         doc.setParseStatus(ParseStatus.PENDING);
         doc.setIsAttachment(false);
         doc.setPriority(isVip ? 1 : 0);
@@ -110,8 +128,17 @@ public class DocumentServiceImpl implements DocumentService {
         // 1. 先上传文件到存储服务
         FileUploadResponse fileResponse = documentStorageService.uploadFile(file, userId);
 
-        // 2. 创建文档记录
-        return createDocumentByFileId(fileResponse.getFileId(), userId, isVip);
+        // 2. 创建文档记录（带完整文件元数据）
+        return createDocumentWithFile(
+                fileResponse.getFileId(),
+                userId,
+                isVip,
+                null, // rootId
+                fileResponse.getFileName(),
+                fileResponse.getFileSize(),
+                fileResponse.getFileType(),
+                fileResponse.getStoragePath()
+        );
     }
 
     @Override
@@ -143,12 +170,16 @@ public class DocumentServiceImpl implements DocumentService {
             try {
                 // 上传文件
                 FileUploadResponse fileResponse = documentStorageService.uploadFile(file, userId);
-                // 创建文档记录，设置 rootId 指向批量根文档
-                DocumentDTO doc = createDocumentByFileId(
+                // 创建文档记录，设置 rootId 指向批量根文档（带完整文件元数据）
+                DocumentDTO doc = createDocumentWithFile(
                         fileResponse.getFileId(),
                         userId,
                         isVip,
-                        batchRootId
+                        batchRootId,
+                        fileResponse.getFileName(),
+                        fileResponse.getFileSize(),
+                        fileResponse.getFileType(),
+                        fileResponse.getStoragePath()
                 );
 
                 items.add(BatchUploadResponse.UploadItem.builder()

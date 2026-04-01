@@ -13,13 +13,13 @@ spring:
 
   # 数据源配置（MySQL）
   datasource:
-    url: jdbc:mysql://${DB_HOST:localhost}:3306/transafe_db?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    url: jdbc:mysql://${ALICLOUD_HOST:localhost}:3306/transafe_db?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
     # url 参数说明：
     #   useSSL=false: 关闭SSL连接（开发环境可关闭，生产环境建议开启）
     #   serverTimezone=Asia/Shanghai: 设置时区为上海
     #   allowPublicKeyRetrieval=true: 允许获取公钥（MySQL 8.0+需要）
-    username: ${DB_USER:root}                             # 数据库用户名，建议通过环境变量 DB_USER 配置
-    password: ${DB_PASSWORD:root123}                      # 数据库密码，建议通过环境变量 DB_PASSWORD 配置
+    username: ${DB_USER:remote}                             # 数据库用户名，建议通过环境变量 DB_USER 配置
+    password: ${DB_PASSWORD:6tfc^YHN}                      # 数据库密码，建议通过环境变量 DB_PASSWORD 配置
     driver-class-name: com.mysql.cj.jdbc.Driver           # MySQL 8.0+ 驱动类名
 
   # MyBatis Plus 配置
@@ -39,20 +39,20 @@ spring:
   # Redis 配置（用于 Token 缓存、会话管理等）
   data:
     redis:
-      host: ${REDIS_HOST:localhost}                       # Redis 服务器地址
+      host: ${ALICLOUD_HOST:localhost}                       # Redis 服务器地址
       port: 6379                                          # Redis 端口，默认 6379
       password: ${REDIS_PASSWORD:}                        # Redis 密码，为空表示无密码
 
     # Elasticsearch 配置（用于文档全文检索）
     elasticsearch:
-      hosts: ${ES_HOSTS:localhost:9200}                   # ES 节点地址，多个节点用逗号分隔，如：localhost:9200,localhost:9201
+      hosts: ${ALICLOUD_HOST:localhost:9200}                   # ES 节点地址，多个节点用逗号分隔，如：localhost:9200,localhost:9201
 
   # RabbitMQ 配置（用于异步任务处理）
   rabbitmq:
-    host: ${RABBITMQ_HOST:localhost}                      # RabbitMQ 服务器地址
+    host: ${ALICLOUD_HOST:localhost}                      # RabbitMQ 服务器地址
     port: 5672                                            # RabbitMQ 端口，默认 5672
-    username: ${RABBITMQ_USER:guest}                      # RabbitMQ 用户名
-    password: ${RABBITMQ_PASSWORD:guest}                  # RabbitMQ 密码
+    username: ${RABBITMQ_USER:admin}                      # RabbitMQ 用户名
+    password: ${REDIS_PASSWORD:guest}                  # RabbitMQ 密码
 
 # JWT Token 配置
 jwt:
