@@ -1,29 +1,29 @@
 package com.benmake.transafe.task.consumer;
 
+import com.benmake.transafe.infra.mapper.TaskMapper;
 import com.benmake.transafe.quota.service.QuotaService;
 import com.benmake.transafe.task.entity.TaskEntity;
-import com.benmake.transafe.task.repository.TaskRepository;
-import com.benmake.transafe.task.service.TaskProducer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.Map;
 
 /**
  * 任务结果消费者
  *
- * @author TYPO
- * @since 2026-03-30
+ * @author JTP
+ * @date 2026-04-01
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class TaskResultConsumer {
 
-    private final TaskRepository taskRepository;
+    private final TaskMapper taskMapper;
     private final QuotaService quotaService;
 
     /**
@@ -37,7 +37,7 @@ public class TaskResultConsumer {
 
         log.info("接收解析结果: taskId={}, status={}", taskId, status);
 
-        TaskEntity task = taskRepository.findByTaskId(taskId).orElse(null);
+        TaskEntity task = taskMapper.findByTaskId(taskId).orElse(null);
         if (task == null) {
             log.warn("任务不存在: taskId={}", taskId);
             return;
@@ -47,6 +47,7 @@ public class TaskResultConsumer {
 
         if ("SUCCESS".equals(status)) {
             // 获取字符数
+            @SuppressWarnings("unchecked")
             Map<String, Object> metadata = (Map<String, Object>) result.get("metadata");
             if (metadata != null && metadata.get("charCount") != null) {
                 Integer charCount = ((Number) metadata.get("charCount")).intValue();
@@ -59,8 +60,8 @@ public class TaskResultConsumer {
             task.setErrorMessage((String) result.get("errorMessage"));
         }
 
-        task.setCompletedAt(java.time.LocalDateTime.now());
-        taskRepository.save(task);
+        task.setCompletedAt(LocalDateTime.now());
+        taskMapper.updateById(task);
 
         log.info("任务状态更新完成: taskId={}, status={}", taskId, status);
     }

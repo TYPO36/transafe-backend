@@ -9,16 +9,17 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Map;
+
 /**
  * 任务控制器
  *
- * @author TYPO
- * @since 2026-03-30
+ * @author JTP
+ * @date 2026-04-01
  */
 @Tag(name = "任务", description = "翻译任务的创建、查询、列表等接口")
 @RestController
@@ -48,12 +49,12 @@ public class TaskController {
 
     @Operation(summary = "获取任务列表", description = "获取当前用户的任务列表，支持分页和状态筛选")
     @GetMapping
-    public ResponseEntity<ApiResponse<Page<TaskResponse>>> listTasks(
+    public ResponseEntity<ApiResponse<Map<String, Object>>> listTasks(
             @Parameter(hidden = true) @AuthenticationPrincipal Long userId,
             @Parameter(description = "页码，默认1") @RequestParam(defaultValue = "1") int page,
             @Parameter(description = "每页数量，默认20") @RequestParam(defaultValue = "20") int size,
             @Parameter(description = "任务状态筛选（可选）") @RequestParam(required = false) String status) {
-        Page<TaskResponse> tasks = taskService.listTasks(userId, page, size, status);
+        Map<String, Object> tasks = taskService.listTasks(userId, page, size, status);
         return ResponseEntity.ok(ApiResponse.success(tasks));
     }
 }

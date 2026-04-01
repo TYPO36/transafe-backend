@@ -8,8 +8,8 @@ import com.benmake.transafe.auth.service.AuthService;
 import com.benmake.transafe.auth.service.JwtService;
 import com.benmake.transafe.common.exception.BusinessException;
 import com.benmake.transafe.common.exception.ErrorCode;
+import com.benmake.transafe.infra.mapper.UserMapper;
 import com.benmake.transafe.user.entity.UserEntity;
-import com.benmake.transafe.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
@@ -17,25 +17,27 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
+
 /**
  * 认证服务实现
  *
- * @author TYPO
- * @since 2026-03-31
+ * @author JTP
+ * @date 2026-04-01
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class AuthServiceImpl implements AuthService {
 
-    private final UserRepository userRepository;
+    private final UserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final TokenCache tokenCache;
 
     @Override
     public TokenResponse login(LoginRequest request) {
-        UserEntity user = userRepository.findByUsername(request.getUsername())
+        UserEntity user = userMapper.findByUsername(request.getUsername())
                 .orElseThrow(() -> new BusinessException(ErrorCode.LOGIN_FAILED));
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
@@ -75,19 +77,19 @@ public class AuthServiceImpl implements AuthService {
     @Transactional
     public void register(RegisterRequest request) {
         // 校验用户名唯一性
-        if (userRepository.existsByUsername(request.getUsername())) {
+        if (userMapper.existsByUsername(request.getUsername())) {
             throw new BusinessException(ErrorCode.USERNAME_EXISTS);
         }
 
         // 校验邮箱唯一性（如果提供了邮箱）
         if (request.getEmail() != null && !request.getEmail().isBlank()
-                && userRepository.existsByEmail(request.getEmail())) {
+                && userMapper.existsByEmail(request.getEmail())) {
             throw new BusinessException(ErrorCode.EMAIL_EXISTS);
         }
 
         // 校验手机号唯一性（如果提供了手机号）
         if (request.getPhone() != null && !request.getPhone().isBlank()
-                && userRepository.existsByPhone(request.getPhone())) {
+                && userMapper.existsByPhone(request.getPhone())) {
             throw new BusinessException(ErrorCode.PHONE_EXISTS);
         }
 
@@ -100,8 +102,10 @@ public class AuthServiceImpl implements AuthService {
         user.setNickname(request.getUsername());
         user.setMembershipLevel(0);
         user.setStatus("ACTIVE");
+        user.setCreatedAt(LocalDateTime.now());
+        user.setUpdatedAt(LocalDateTime.now());
 
-        userRepository.save(user);
+        userMapper.insert(user);
         log.info("用户注册成功: username={}, email={}, phone={}",
                 request.getUsername(), request.getEmail(), request.getPhone());
     }
@@ -121,8 +125,10 @@ public class AuthServiceImpl implements AuthService {
             throw new BusinessException(ErrorCode.TOKEN_REVOKED);
         }
 
-        UserEntity user = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+        UserEntity user = userMapper.selectById(userId);
+        if (user == null) {
+            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+        }
 
         // 生成新Token
         String newAccessToken = jwtService.generateAccessToken(user.getId(), user.getUsername());

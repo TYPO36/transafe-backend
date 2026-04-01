@@ -9,7 +9,7 @@ import com.benmake.transafe.document.dto.ParseMessageDTO;
 import com.benmake.transafe.document.dto.ParseProgressDTO;
 import com.benmake.transafe.document.entity.DocumentEntity;
 import com.benmake.transafe.document.mq.DocumentParseProducer;
-import com.benmake.transafe.document.repository.DocumentRepository;
+import com.benmake.transafe.infra.mapper.DocumentMapper;
 import com.benmake.transafe.document.service.DocumentService;
 import com.benmake.transafe.file.dto.FileUploadResponse;
 import com.benmake.transafe.file.service.FileProxyService;
@@ -28,15 +28,15 @@ import java.util.stream.Collectors;
 /**
  * 文档服务实现
  *
- * @author TYPO
- * @since 2026-03-31
+ * @author JTP
+ * @date 2026-04-01
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class DocumentServiceImpl implements DocumentService {
 
-    private final DocumentRepository documentRepository;
+    private final DocumentMapper documentMapper;
     private final DocumentParseProducer producer;
     private final FileProxyService fileProxyService;
 
@@ -62,6 +62,7 @@ public class DocumentServiceImpl implements DocumentService {
      */
     private DocumentDTO doCreateDocument(String fileId, String rootId, String fileName, Long fileSize,
                                        String storagePath, String fileType, Long userId, boolean isVip) {
+        LocalDateTime now = LocalDateTime.now();
         DocumentEntity doc = new DocumentEntity();
         doc.setFileId(fileId);
         doc.setUserId(userId);
@@ -74,10 +75,12 @@ public class DocumentServiceImpl implements DocumentService {
         doc.setPriority(isVip ? 1 : 0);
         doc.setRetryCount(0);
         doc.setParseErrorCode(0);
+        doc.setCreatedAt(now);
+        doc.setUpdatedAt(now);
         // rootId：如果指定了就用指定的，否则就是自己的 fileId（单文件场景）
         doc.setRootId(rootId != null ? rootId : fileId);
 
-        doc = documentRepository.save(doc);
+        documentMapper.insert(doc);
 
         // 发送解析消息
         ParseMessageDTO message = ParseMessageDTO.builder()
@@ -127,6 +130,7 @@ public class DocumentServiceImpl implements DocumentService {
 
         // 为批量上传创建根文档，用于跟踪整个批次的解析进度
         String batchRootId = UUID.randomUUID().toString().replace("-", "");
+        LocalDateTime now = LocalDateTime.now();
         DocumentEntity batchRoot = new DocumentEntity();
         batchRoot.setFileId(batchRootId);
         batchRoot.setUserId(userId);
@@ -139,7 +143,9 @@ public class DocumentServiceImpl implements DocumentService {
         batchRoot.setPriority(isVip ? 1 : 0);
         batchRoot.setRetryCount(0);
         batchRoot.setParseErrorCode(0);
-        documentRepository.save(batchRoot);
+        batchRoot.setCreatedAt(now);
+        batchRoot.setUpdatedAt(now);
+        documentMapper.insert(batchRoot);
 
         for (MultipartFile file : files) {
             try {
@@ -178,7 +184,7 @@ public class DocumentServiceImpl implements DocumentService {
 
     @Override
     public DocumentDTO getDocument(String fileId) {
-        DocumentEntity doc = documentRepository.findByFileId(fileId)
+        DocumentEntity doc = documentMapper.findByFileId(fileId)
                 .orElseThrow(() -> new RuntimeException("文档不存在: " + fileId));
         return toDTO(doc);
     }
@@ -190,7 +196,7 @@ public class DocumentServiceImpl implements DocumentService {
 
     @Override
     public DocumentTreeDTO getDocumentTree(String fileId) {
-        DocumentEntity doc = documentRepository.findByFileId(fileId)
+        DocumentEntity doc = documentMapper.findByFileId(fileId)
                 .orElseThrow(() -> new RuntimeException("文档不存在: " + fileId));
         return buildTree(doc);
     }
@@ -198,7 +204,7 @@ public class DocumentServiceImpl implements DocumentService {
     @Override
     @Transactional
     public void retryWithPassword(String fileId, String password) {
-        DocumentEntity doc = documentRepository.findByFileId(fileId)
+        DocumentEntity doc = documentMapper.findByFileId(fileId)
                 .orElseThrow(() -> new RuntimeException("文档不存在: " + fileId));
 
         if (doc.getParseErrorCode() == null
@@ -212,7 +218,7 @@ public class DocumentServiceImpl implements DocumentService {
         doc.setParseErrorCode(0);
         doc.setParseErrorMessage(null);
         doc.setUpdatedAt(LocalDateTime.now());
-        documentRepository.save(doc);
+        documentMapper.updateById(doc);
 
         // 发送重试消息（不走优先队列）
         producer.sendForRetry(toMessage(doc));
@@ -223,15 +229,15 @@ public class DocumentServiceImpl implements DocumentService {
     @Override
     public ParseProgressDTO getParseProgress(String rootId) {
         // 统计根文档下的所有文档
-        long total = documentRepository.countByRootIdAndParseStatus(rootId, ParseStatus.PENDING)
-                + documentRepository.countByRootIdAndParseStatus(rootId, ParseStatus.PARSING)
-                + documentRepository.countByRootIdAndParseStatus(rootId, ParseStatus.PARSED)
-                + documentRepository.countByRootIdAndParseStatus(rootId, ParseStatus.FAILED);
+        long total = documentMapper.countByRootIdAndParseStatus(rootId, ParseStatus.PENDING)
+                + documentMapper.countByRootIdAndParseStatus(rootId, ParseStatus.PARSING)
+                + documentMapper.countByRootIdAndParseStatus(rootId, ParseStatus.PARSED)
+                + documentMapper.countByRootIdAndParseStatus(rootId, ParseStatus.FAILED);
 
-        long pending = documentRepository.countByRootIdAndParseStatus(rootId, ParseStatus.PENDING);
-        long parsing = documentRepository.countByRootIdAndParseStatus(rootId, ParseStatus.PARSING);
-        long success = documentRepository.countByRootIdAndParseStatus(rootId, ParseStatus.PARSED);
-        long failed = documentRepository.countByRootIdAndParseStatus(rootId, ParseStatus.FAILED);
+        long pending = documentMapper.countByRootIdAndParseStatus(rootId, ParseStatus.PENDING);
+        long parsing = documentMapper.countByRootIdAndParseStatus(rootId, ParseStatus.PARSING);
+        long success = documentMapper.countByRootIdAndParseStatus(rootId, ParseStatus.PARSED);
+        long failed = documentMapper.countByRootIdAndParseStatus(rootId, ParseStatus.FAILED);
 
         int progress = total > 0 ? (int) ((success + failed) * 100 / total) : 0;
         boolean completed = total > 0 && (pending + parsing) == 0;
@@ -268,7 +274,7 @@ public class DocumentServiceImpl implements DocumentService {
                 .priority(doc.getPriority());
 
         // 递归获取子文档
-        List<DocumentEntity> children = documentRepository.findByParentId(doc.getFileId());
+        List<DocumentEntity> children = documentMapper.findByParentId(doc.getFileId());
         if (!children.isEmpty()) {
             builder.children(children.stream()
                     .map(this::buildTree)

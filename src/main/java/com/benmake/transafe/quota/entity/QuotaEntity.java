@@ -1,6 +1,9 @@
 package com.benmake.transafe.quota.entity;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 
 import java.time.LocalDate;
@@ -9,53 +12,37 @@ import java.time.LocalDateTime;
 /**
  * 配额实体
  *
- * @author TYPO
- * @since 2026-03-30
+ * @author JTP
+ * @date 2026-04-01
  */
 @Data
-@Entity
-@Table(name = "quota")
+@TableName("quota")
 public class QuotaEntity {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(type = IdType.AUTO)
     private Long id;
 
-    @Column(name = "user_id", unique = true, nullable = false)
+    @TableField("user_id")
     private Long userId;
 
-    @Column(name = "daily_translation_total")
+    @TableField("daily_translation_total")
     private Integer dailyTranslationTotal = 5000;
 
-    @Column(name = "daily_translation_used")
+    @TableField("daily_translation_used")
     private Integer dailyTranslationUsed = 0;
 
-    @Column(name = "storage_total")
-    private Long storageTotal = 5368709120L; // 5GB
+    @TableField("storage_total")
+    private Long storageTotal = 5368709120L;
 
-    @Column(name = "storage_used")
+    @TableField("storage_used")
     private Long storageUsed = 0L;
 
-    @Column(name = "last_reset_date")
+    @TableField("last_reset_date")
     private LocalDate lastResetDate;
 
-    @Column(name = "created_at")
+    @TableField("created_at")
     private LocalDateTime createdAt;
 
-    @Column(name = "updated_at")
+    @TableField("updated_at")
     private LocalDateTime updatedAt;
-
-    @PrePersist
-    public void prePersist() {
-        this.createdAt = LocalDateTime.now();
-        this.updatedAt = LocalDateTime.now();
-        if (this.lastResetDate == null) {
-            this.lastResetDate = LocalDate.now();
-        }
-    }
-
-    @PreUpdate
-    public void preUpdate() {
-        this.updatedAt = LocalDateTime.now();
-    }
 }

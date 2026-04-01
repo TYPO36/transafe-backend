@@ -1,81 +1,97 @@
+# ============================================================
+# Transafe 后端服务配置文件
+# 说明：本配置文件包含服务端口、数据源、缓存、消息队列等核心配置
+# 配置项支持环境变量覆盖，格式：${环境变量名:默认值}
+# ============================================================
+
 server:
-  port: 8080
+  port: 8080                                              # 服务监听端口，默认 8080，可通过环境变量 SERVER_PORT 覆盖
 
 spring:
   application:
-    name: transafe
+    name: transafe                                        # 应用名称，用于服务注册和日志标识
 
-  # 数据源配置
+  # 数据源配置（MySQL）
   datasource:
     url: jdbc:mysql://${DB_HOST:localhost}:3306/transafe_db?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
-    username: ${DB_USER:root}
-    password: ${DB_PASSWORD:root123}
-    driver-class-name: com.mysql.cj.jdbc.Driver
+    # url 参数说明：
+    #   useSSL=false: 关闭SSL连接（开发环境可关闭，生产环境建议开启）
+    #   serverTimezone=Asia/Shanghai: 设置时区为上海
+    #   allowPublicKeyRetrieval=true: 允许获取公钥（MySQL 8.0+需要）
+    username: ${DB_USER:root}                             # 数据库用户名，建议通过环境变量 DB_USER 配置
+    password: ${DB_PASSWORD:root123}                      # 数据库密码，建议通过环境变量 DB_PASSWORD 配置
+    driver-class-name: com.mysql.cj.jdbc.Driver           # MySQL 8.0+ 驱动类名
 
-  # JPA 配置
-  jpa:
-    hibernate:
-      ddl-auto: update
-    show-sql: false
-    properties:
-      hibernate:
-        format_sql: true
+  # MyBatis Plus 配置
+  mybatis-plus:
+    mapper-locations: classpath*:mapper/**/*.xml          # Mapper XML 文件位置，classpath* 表示扫描所有 jar 包和模块
+    type-aliases-package: com.benmake.transafe.*.entity   # 实体类别名包路径，配置后可在 XML 中使用简单类名
+    configuration:
+      map-underscore-to-camel-case: true                  # 下划线转驼峰：数据库字段 user_name 自动映射到 Java 属性 userName
+      log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl # SQL 日志输出实现（开发环境推荐 Slf4jImpl，生产环境可用 NoLoggingImpl）
+    global-config:
+      db-config:
+        id-type: auto                                     # 主键生成策略：auto-数据库自增，assign_id-雪花算法
+        logic-delete-field: deleted                       # 逻辑删除字段名（实体类中对应的字段）
+        logic-delete-value: 1                             # 删除后的值
+        logic-not-delete-value: 0                         # 未删除的值
 
-  # Redis 配置
+  # Redis 配置（用于 Token 缓存、会话管理等）
   data:
     redis:
-      host: ${REDIS_HOST:localhost}
-      port: 6379
-      password: ${REDIS_PASSWORD:}
+      host: ${REDIS_HOST:localhost}                       # Redis 服务器地址
+      port: 6379                                          # Redis 端口，默认 6379
+      password: ${REDIS_PASSWORD:}                        # Redis 密码，为空表示无密码
 
-    # Elasticsearch 配置
+    # Elasticsearch 配置（用于文档全文检索）
     elasticsearch:
-      hosts: ${ES_HOSTS:localhost:9200}
+      hosts: ${ES_HOSTS:localhost:9200}                   # ES 节点地址，多个节点用逗号分隔，如：localhost:9200,localhost:9201
 
-  # RabbitMQ 配置
+  # RabbitMQ 配置（用于异步任务处理）
   rabbitmq:
-    host: ${RABBITMQ_HOST:localhost}
-    port: 5672
-    username: ${RABBITMQ_USER:guest}
-    password: ${RABBITMQ_PASSWORD:guest}
+    host: ${RABBITMQ_HOST:localhost}                      # RabbitMQ 服务器地址
+    port: 5672                                            # RabbitMQ 端口，默认 5672
+    username: ${RABBITMQ_USER:guest}                      # RabbitMQ 用户名
+    password: ${RABBITMQ_PASSWORD:guest}                  # RabbitMQ 密码
 
-# JWT 配置
+# JWT Token 配置
 jwt:
   secret: ${JWT_SECRET:your-secret-key-must-be-at-least-256-bits-long-for-hs256-algorithm}
-  expiration: 86400000           # 24小时
-  refresh-expiration: 604800000  # 7天
+  # secret 说明：JWT 签名密钥，HS256 算法要求密钥至少 256 位（32 字节），生产环境必须设置强密钥
+  expiration: 86400000                                    # Access Token 有效期（毫秒），86400000 = 24 小时
+  refresh-expiration: 604800000                          # Refresh Token 有效期（毫秒），604800000 = 7 天
 
-# 文件存储服务
+# 文件存储配置
 file-storage:
-  type: local
-  local-path: ${FILE_STORAGE_PATH:./files}
+  type: local                                             # 存储类型：local-本地文件系统，oss-阿里云OSS，s3-AWS S3
+  local-path: ${FILE_STORAGE_PATH:./files}                # 本地存储根目录，相对路径 ./files 或绝对路径 /data/files
 
-# RabbitMQ 队列
+# RabbitMQ 队列配置
 rabbitmq:
   queue:
-    task: file.parse.task
-    result: file.parse.result
-  exchange: file.parse.exchange
+    task: file.parse.task                                 # 文档解析任务队列名称
+    result: file.parse.result                             # 解析结果队列名称
+  exchange: file.parse.exchange                           # 消息交换机名称
 
-# 配额默认值
+# 用户配额默认值配置
 quota:
   default:
-    daily-translation: 5000
-    storage: 5368709120  # 5GB
+    daily-translation: 5000                               # 每日翻译字符数限制（字符/天）
+    storage: 5368709120                                   # 存储空间限制（字节），5368709120 = 5GB，10737418240 = 10GB
 
 # 日志配置
 logging:
   level:
-    root: INFO
-    com.benmake.transafe: DEBUG
-    org.springframework.security: INFO
+    root: INFO                                            # 根日志级别：TRACE < DEBUG < INFO < WARN < ERROR
+    com.benmake.transafe: DEBUG                           # 项目日志级别（开发环境用 DEBUG，生产环境用 INFO）
+    org.springframework.security: INFO                    # Spring Security 日志级别
 
-# SpringDoc OpenAPI 配置
+# SpringDoc OpenAPI 配置（Swagger UI）
 springdoc:
   swagger-ui:
-    path: /swagger-ui.html
-    tags-sorter: alpha
-    operations-sorter: alpha
+    path: /swagger-ui.html                                # Swagger UI 访问路径，访问地址：http://localhost:8080/swagger-ui.html
+    tags-sorter: alpha                                    # 标签排序方式：alpha-按字母排序
+    operations-sorter: alpha                              # 接口排序方式：alpha-按字母排序
   api-docs:
-    path: /v3/api-docs
-  default-flat-param-object: true
+    path: /v3/api-docs                                    # OpenAPI JSON 文档路径
+  default-flat-param-object: true                         # 扁平化参数对象

@@ -1,6 +1,9 @@
 package com.benmake.transafe.task.entity;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 
 import java.time.LocalDateTime;
@@ -8,54 +11,43 @@ import java.time.LocalDateTime;
 /**
  * 任务实体
  *
- * @author TYPO
- * @since 2026-03-30
+ * @author JTP
+ * @date 2026-04-01
  */
 @Data
-@Entity
-@Table(name = "task", indexes = {
-        @Index(name = "idx_task_id", columnList = "task_id"),
-        @Index(name = "idx_user", columnList = "user_id"),
-        @Index(name = "idx_status", columnList = "status")
-})
+@TableName("task")
 public class TaskEntity {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(type = IdType.AUTO)
     private Long id;
 
-    @Column(name = "task_id", unique = true, nullable = false, length = 50)
+    @TableField("task_id")
     private String taskId;
 
-    @Column(name = "user_id", nullable = false)
+    @TableField("user_id")
     private Long userId;
 
-    @Column(name = "file_id", nullable = false, length = 50)
+    @TableField("file_id")
     private String fileId;
 
-    @Column(name = "file_name")
+    @TableField("file_name")
     private String fileName;
 
-    @Column(name = "file_type", length = 50)
+    @TableField("file_type")
     private String fileType;
 
-    @Column(length = 20)
+    @TableField("status")
     private String status = "PENDING";
 
-    @Column(name = "char_count")
+    @TableField("char_count")
     private Integer charCount = 0;
 
-    @Column(name = "error_message", columnDefinition = "TEXT")
+    @TableField(value = "error_message", jdbcType = org.apache.ibatis.type.JdbcType.VARCHAR)
     private String errorMessage;
 
-    @Column(name = "created_at")
+    @TableField("created_at")
     private LocalDateTime createdAt;
 
-    @Column(name = "completed_at")
+    @TableField("completed_at")
     private LocalDateTime completedAt;
-
-    @PrePersist
-    public void prePersist() {
-        this.createdAt = LocalDateTime.now();
-    }
 }

@@ -5,32 +5,27 @@ import com.benmake.transafe.common.exception.ErrorCode;
 import com.benmake.transafe.file.dto.FileInfoResponse;
 import com.benmake.transafe.file.dto.FileUploadResponse;
 import com.benmake.transafe.file.service.FileProxyService;
-import com.benmake.transafe.file.service.LocalFileStorageService;
 import com.benmake.transafe.quota.service.QuotaService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.Resource;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.util.HashMap;
 import java.util.Map;
 
 /**
  * 文件代理服务实现
  *
- * @author TYPO
- * @since 2026-03-31
+ * @author JTP
+ * @date 2026-04-01
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class FileProxyServiceImpl implements FileProxyService {
 
-    private final LocalFileStorageService localFileStorageService;
+    private final com.benmake.transafe.file.service.impl.LocalFileStorageService localFileStorageService;
     private final QuotaService quotaService;
 
     @Override
@@ -61,20 +56,7 @@ public class FileProxyServiceImpl implements FileProxyService {
 
     @Override
     public Map<String, Object> listFiles(Long userId, int page, int size) {
-        Pageable pageable = PageRequest.of(page - 1, size);
-        Page<FileInfoResponse> filePage = localFileStorageService.listFiles(userId, pageable);
-
-        Map<String, Object> result = new HashMap<>();
-        result.put("content", filePage.getContent());
-        result.put("totalElements", filePage.getTotalElements());
-        result.put("totalPages", filePage.getTotalPages());
-        result.put("size", filePage.getSize());
-        result.put("number", filePage.getNumber());
-        result.put("first", filePage.isFirst());
-        result.put("last", filePage.isLast());
-        result.put("empty", filePage.isEmpty());
-
-        return result;
+        return localFileStorageService.listFiles(userId, page, size);
     }
 
     @Override

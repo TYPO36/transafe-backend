@@ -9,10 +9,10 @@ import com.benmake.transafe.document.es.DocumentIndex;
 import com.benmake.transafe.document.mq.DocumentParseProducer;
 import com.benmake.transafe.document.parser.DocumentParser;
 import com.benmake.transafe.document.parser.ParserFactory;
-import com.benmake.transafe.document.repository.DocumentRepository;
 import com.benmake.transafe.document.service.DocumentIndexService;
 import com.benmake.transafe.document.service.ParseService;
-import com.benmake.transafe.file.service.LocalFileStorageService;
+import com.benmake.transafe.file.service.impl.LocalFileStorageService;
+import com.benmake.transafe.infra.mapper.DocumentMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.compress.archivers.zip.ZipArchiveInputStream;
@@ -32,15 +32,15 @@ import java.util.stream.Collectors;
 /**
  * 文档解析服务实现
  *
- * @author TYPO
- * @since 2026-03-31
+ * @author JTP
+ * @date 2026-04-01
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class ParseServiceImpl implements ParseService {
 
-    private final DocumentRepository documentRepository;
+    private final DocumentMapper documentMapper;
     private final ParserFactory parserFactory;
     private final DocumentParseProducer producer;
     private final DocumentIndexService documentIndexService;
@@ -53,7 +53,7 @@ public class ParseServiceImpl implements ParseService {
         log.info("开始解析文档: fileId={}, fileName={}, fileType={}",
                 fileId, message.getFileName(), message.getFileType());
 
-        DocumentEntity doc = documentRepository.findByFileId(fileId)
+        DocumentEntity doc = documentMapper.findByFileId(fileId)
                 .orElseThrow(() -> {
                     log.error("文档不存在: fileId={}", fileId);
                     return new RuntimeException("文档不存在: " + fileId);
@@ -62,7 +62,7 @@ public class ParseServiceImpl implements ParseService {
         // 更新状态为解析中
         doc.setParseStatus(ParseStatus.PARSING);
         doc.setUpdatedAt(LocalDateTime.now());
-        documentRepository.save(doc);
+        documentMapper.updateById(doc);
 
         try {
             // 处理ZIP压缩包
@@ -145,6 +145,7 @@ public class ParseServiceImpl implements ParseService {
                         // 上传到存储服务
                         String storagePath = saveToStorage(fileName, new ByteArrayInputStream(content), message.getUserId());
 
+                        LocalDateTime now = LocalDateTime.now();
                         DocumentEntity extractedDoc = new DocumentEntity();
                         extractedDoc.setFileId(fileId);
                         extractedDoc.setUserId(doc.getUserId());
@@ -158,8 +159,10 @@ public class ParseServiceImpl implements ParseService {
                         extractedDoc.setPriority(doc.getPriority());
                         extractedDoc.setParseStatus(ParseStatus.PENDING);
                         extractedDoc.setRetryCount(0);
+                        extractedDoc.setCreatedAt(now);
+                        extractedDoc.setUpdatedAt(now);
 
-                        documentRepository.save(extractedDoc);
+                        documentMapper.insert(extractedDoc);
                         extractedFiles.add(extractedDoc);
 
                         // 发送解析消息
@@ -172,7 +175,7 @@ public class ParseServiceImpl implements ParseService {
             doc.setParseStatus(ParseStatus.PARSED);
             doc.setParseErrorCode(0);
             doc.setUpdatedAt(LocalDateTime.now());
-            documentRepository.save(doc);
+            documentMapper.updateById(doc);
 
             // 索引ZIP文件（不含内容，只有附件列表）
             DocumentIndex index = toDocumentIndex(doc, null, null);
@@ -202,7 +205,7 @@ public class ParseServiceImpl implements ParseService {
         doc.setParseErrorCode(0);
         doc.setParseErrorMessage(null);
         doc.setUpdatedAt(LocalDateTime.now());
-        documentRepository.save(doc);
+        documentMapper.updateById(doc);
 
         // 索引到ES
         DocumentIndex index = toDocumentIndex(doc, result.content(), result.metadata());
@@ -226,7 +229,7 @@ public class ParseServiceImpl implements ParseService {
         doc.setPasswordProvided(message.getPassword());
         doc.setRetryCount(doc.getRetryCount() + 1);
         doc.setUpdatedAt(LocalDateTime.now());
-        documentRepository.save(doc);
+        documentMapper.updateById(doc);
 
         log.info("文档密码保护: fileId={}", doc.getFileId());
     }
@@ -239,7 +242,7 @@ public class ParseServiceImpl implements ParseService {
         doc.setParseErrorCode(errorCode.getCode());
         doc.setParseErrorMessage(errorMsg);
         doc.setUpdatedAt(LocalDateTime.now());
-        documentRepository.save(doc);
+        documentMapper.updateById(doc);
 
         // 可重试错误，发送重试消息
         if (errorCode.isRetryable() && doc.getRetryCount() < 3) {
@@ -270,6 +273,7 @@ public class ParseServiceImpl implements ParseService {
             Integer size = (Integer) attachment.get("size");
             String fileType = getFileType(fileName);
 
+            LocalDateTime now = LocalDateTime.now();
             DocumentEntity attachDoc = new DocumentEntity();
             attachDoc.setFileId(fileId);
             attachDoc.setUserId(doc.getUserId());
@@ -283,8 +287,10 @@ public class ParseServiceImpl implements ParseService {
             attachDoc.setPriority(doc.getPriority());
             attachDoc.setParseStatus(ParseStatus.PENDING);
             attachDoc.setRetryCount(0);
+            attachDoc.setCreatedAt(now);
+            attachDoc.setUpdatedAt(now);
 
-            documentRepository.save(attachDoc);
+            documentMapper.insert(attachDoc);
 
             // 发送解析消息
             ParseMessageDTO attachMessage = ParseMessageDTO.builder()

@@ -1,36 +1,39 @@
 package com.benmake.transafe.task.service.impl;
 
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.benmake.transafe.common.exception.BusinessException;
 import com.benmake.transafe.common.exception.ErrorCode;
 import com.benmake.transafe.file.dto.FileInfoResponse;
 import com.benmake.transafe.file.service.FileProxyService;
+import com.benmake.transafe.infra.mapper.TaskMapper;
 import com.benmake.transafe.quota.service.QuotaService;
 import com.benmake.transafe.task.dto.TaskCreateRequest;
 import com.benmake.transafe.task.dto.TaskResponse;
 import com.benmake.transafe.task.entity.TaskEntity;
-import com.benmake.transafe.task.repository.TaskRepository;
 import com.benmake.transafe.task.service.TaskProducer;
 import com.benmake.transafe.task.service.TaskService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * 任务服务实现
  *
- * @author TYPO
- * @since 2026-03-30
+ * @author JTP
+ * @date 2026-04-01
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class TaskServiceImpl implements TaskService {
 
-    private final TaskRepository taskRepository;
+    private final TaskMapper taskMapper;
     private final TaskProducer taskProducer;
     private final QuotaService quotaService;
     private final FileProxyService fileProxyService;
@@ -49,8 +52,9 @@ public class TaskServiceImpl implements TaskService {
         task.setFileName(fileInfo.getFileName());
         task.setFileType(fileInfo.getFileType());
         task.setStatus("PENDING");
+        task.setCreatedAt(LocalDateTime.now());
 
-        task = taskRepository.save(task);
+        taskMapper.insert(task);
 
         // 发送任务消息
         taskProducer.sendParseTask(task);
@@ -62,7 +66,7 @@ public class TaskServiceImpl implements TaskService {
 
     @Override
     public TaskResponse getTask(String taskId, Long userId) {
-        TaskEntity task = taskRepository.findByTaskId(taskId)
+        TaskEntity task = taskMapper.findByTaskId(taskId)
                 .filter(t -> t.getUserId().equals(userId))
                 .orElseThrow(() -> new BusinessException(ErrorCode.TASK_NOT_FOUND));
 
@@ -70,17 +74,27 @@ public class TaskServiceImpl implements TaskService {
     }
 
     @Override
-    public Page<TaskResponse> listTasks(Long userId, int page, int size, String status) {
-        PageRequest pageRequest = PageRequest.of(page - 1, size, Sort.by("createdAt").descending());
+    public Map<String, Object> listTasks(Long userId, int pageNum, int size, String status) {
+        Page<TaskEntity> page = new Page<>(pageNum, size);
+        IPage<TaskEntity> tasks;
 
-        Page<TaskEntity> tasks;
         if (status != null && !status.isEmpty()) {
-            tasks = taskRepository.findByUserIdAndStatus(userId, status, pageRequest);
+            tasks = taskMapper.findByUserIdAndStatus(page, userId, status);
         } else {
-            tasks = taskRepository.findByUserId(userId, pageRequest);
+            tasks = taskMapper.findByUserId(page, userId);
         }
 
-        return tasks.map(this::toResponse);
+        Map<String, Object> result = new HashMap<>();
+        result.put("content", tasks.getRecords().stream().map(this::toResponse).toList());
+        result.put("totalElements", tasks.getTotal());
+        result.put("totalPages", tasks.getPages());
+        result.put("size", tasks.getSize());
+        result.put("number", tasks.getCurrent() - 1);
+        result.put("first", tasks.getCurrent() == 1);
+        result.put("last", tasks.getCurrent() == tasks.getPages());
+        result.put("empty", tasks.getRecords().isEmpty());
+
+        return result;
     }
 
     private TaskResponse toResponse(TaskEntity task) {
