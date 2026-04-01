@@ -1,9 +1,12 @@
 package com.benmake.transafe.quota.entity;
 
+import com.baomidou.mybatisplus.annotation.FieldFill;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableLogic;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.Version;
 import lombok.Data;
 
 import java.time.LocalDate;
@@ -40,9 +43,23 @@ public class QuotaEntity {
     @TableField("last_reset_date")
     private LocalDate lastResetDate;
 
-    @TableField("created_at")
+    @TableField(value = "created_at", fill = FieldFill.INSERT)
     private LocalDateTime createdAt;
 
-    @TableField("updated_at")
+    @TableField(value = "updated_at", fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updatedAt;
+
+    /**
+     * 逻辑删除标记 (0-未删除, 1-已删除)
+     */
+    @TableLogic
+    @TableField(value = "deleted", fill = FieldFill.INSERT)
+    private Integer deleted = 0;
+
+    /**
+     * 乐观锁版本号
+     */
+    @Version
+    @TableField("version")
+    private Integer version = 0;
 }

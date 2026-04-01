@@ -1,8 +1,10 @@
 package com.benmake.transafe.user.entity;
 
+import com.baomidou.mybatisplus.annotation.FieldFill;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableLogic;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 
@@ -166,18 +168,29 @@ public class UserEntity {
     private String status = "ACTIVE";
 
     /**
+     * 用户角色
+     *
+     * <p>角色说明：</p>
+     * <ul>
+     *   <li>USER: 普通用户</li>
+     *   <li>ADMIN: 管理员</li>
+     *   <li>SUPER_ADMIN: 超级管理员</li>
+     * </ul>
+     *
+     * <p>默认值：USER</p>
+     */
+    @TableField("role")
+    private String role = "USER";
+
+    /**
      * 创建时间
      *
      * <p>记录创建时间，注册时自动设置。</p>
      *
      * <h4>自动填充配置</h4>
-     * <p>在 MybatisPlusConfig 中配置了自动填充：</p>
-     * <pre>
-     * &#64;TableField(fill = FieldFill.INSERT)
-     * private LocalDateTime createdAt;
-     * </pre>
+     * <p>MyBatis Plus 自动填充，插入时自动设置。</p>
      */
-    @TableField("created_at")
+    @TableField(value = "created_at", fill = FieldFill.INSERT)
     private LocalDateTime createdAt;
 
     /**
@@ -186,12 +199,17 @@ public class UserEntity {
      * <p>记录最后更新时间，修改时自动更新。</p>
      *
      * <h4>自动填充配置</h4>
-     * <p>在 MybatisPlusConfig 中配置了自动填充：</p>
-     * <pre>
-     * &#64;TableField(fill = FieldFill.INSERT_UPDATE)
-     * private LocalDateTime updatedAt;
-     * </pre>
+     * <p>MyBatis Plus 自动填充，插入和更新时自动设置。</p>
      */
-    @TableField("updated_at")
+    @TableField(value = "updated_at", fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updatedAt;
+
+    /**
+     * 逻辑删除标记
+     *
+     * <p>0-未删除, 1-已删除</p>
+     */
+    @TableLogic
+    @TableField(value = "deleted", fill = FieldFill.INSERT)
+    private Integer deleted = 0;
 }

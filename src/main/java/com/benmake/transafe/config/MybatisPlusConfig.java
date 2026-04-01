@@ -3,6 +3,7 @@ package com.benmake.transafe.config;
 import com.baomidou.mybatisplus.annotation.DbType;
 import com.baomidou.mybatisplus.core.handlers.MetaObjectHandler;
 import com.baomidou.mybatisplus.extension.plugins.MybatisPlusInterceptor;
+import com.baomidou.mybatisplus.extension.plugins.inner.OptimisticLockerInnerInterceptor;
 import com.baomidou.mybatisplus.extension.plugins.inner.PaginationInnerInterceptor;
 import org.apache.ibatis.reflection.MetaObject;
 import org.springframework.context.annotation.Bean;
@@ -48,25 +49,13 @@ public class MybatisPlusConfig {
     /**
      * MyBatis Plus 拦截器配置
      *
-     * <p>配置分页插件，支持 MySQL 数据库分页查询。</p>
+     * <p>配置分页插件和乐观锁插件，支持 MySQL 数据库。</p>
      *
-     * <h4>DbType 参数说明</h4>
+     * <h4>已配置插件</h4>
      * <ul>
-     *   <li>DbType.MYSQL: MySQL 数据库</li>
-     *   <li>DbType.POSTGRE_SQL: PostgreSQL 数据库</li>
-     *   <li>DbType.ORACLE: Oracle 数据库</li>
-     *   <li>DbType.SQL_SERVER: SQL Server 数据库</li>
-     *   <li>不指定: 自动识别数据库类型</li>
+     *   <li>分页插件：自动生成分页 SQL</li>
+     *   <li>乐观锁插件：通过 &#64;Version 注解实现乐观锁</li>
      * </ul>
-     *
-     * <h4>其他常用插件</h4>
-     * <pre>
-     * // 乐观锁插件（需要在实体类添加 &#64;Version 注解）
-     * interceptor.addInnerInterceptor(new OptimisticLockerInnerInterceptor());
-     *
-     * // 防全表更新删除插件（防止误操作）
-     * interceptor.addInnerInterceptor(new BlockAttackInnerInterceptor());
-     * </pre>
      *
      * @return MybatisPlusInterceptor 拦截器实例
      */
@@ -75,9 +64,10 @@ public class MybatisPlusConfig {
         MybatisPlusInterceptor interceptor = new MybatisPlusInterceptor();
 
         // 添加分页插件
-        // DbType.MYSQL 指定数据库类型，生成分页 SQL 时会使用 MySQL 语法（LIMIT）
-        // 如使用其他数据库，修改为对应的 DbType 即可
         interceptor.addInnerInterceptor(new PaginationInnerInterceptor(DbType.MYSQL));
+
+        // 添加乐观锁插件（实体类需要添加 @Version 注解字段）
+        interceptor.addInnerInterceptor(new OptimisticLockerInnerInterceptor());
 
         return interceptor;
     }
@@ -87,19 +77,11 @@ public class MybatisPlusConfig {
      *
      * <p>实现 MetaObjectHandler 接口，在插入和更新操作时自动填充字段值。</p>
      *
-     * <h4>使用场景</h4>
+     * <h4>自动填充字段</h4>
      * <ul>
      *   <li>createdAt（创建时间）：仅在插入时填充</li>
      *   <li>updatedAt（更新时间）：插入和更新时都填充</li>
-     *   <li>createdBy（创建人）：插入时填充当前用户ID</li>
-     *   <li>updatedBy（更新人）：更新时填充当前用户ID</li>
-     * </ul>
-     *
-     * <h4>注意事项</h4>
-     * <ul>
-     *   <li>实体类字段需要添加 &#64;TableField(fill = FieldFill.INSERT) 注解</li>
-     *   <li>strictInsertFill/strictUpdateFill：严格模式，字段为 null 时才填充</li>
-     *   <li>fillStrategy：智能模式，根据字段名和类型自动判断</li>
+     *   <li>deleted（逻辑删除）：插入时默认填充为 0</li>
      * </ul>
      *
      * @return MetaObjectHandler 自动填充处理器实例
@@ -111,35 +93,24 @@ public class MybatisPlusConfig {
             /**
              * 插入时自动填充
              *
-             * <p>当执行 INSERT 操作时，自动填充以下字段：</p>
-             * <ul>
-             *   <li>createdAt: 设置为当前时间</li>
-             *   <li>updatedAt: 设置为当前时间</li>
-             * </ul>
-             *
              * @param metaObject 元对象，包含实体类字段信息
              */
             @Override
             public void insertFill(MetaObject metaObject) {
-                // strictInsertFill: 严格填充，仅在字段为 null 时填充
-                // 参数说明：元对象、字段名、字段类型、填充值
+                // 时间字段自动填充
                 this.strictInsertFill(metaObject, "createdAt", LocalDateTime.class, LocalDateTime.now());
                 this.strictInsertFill(metaObject, "updatedAt", LocalDateTime.class, LocalDateTime.now());
+                // 逻辑删除字段默认值填充
+                this.strictInsertFill(metaObject, "deleted", Integer.class, 0);
             }
 
             /**
              * 更新时自动填充
              *
-             * <p>当执行 UPDATE 操作时，自动填充以下字段：</p>
-             * <ul>
-             *   <li>updatedAt: 更新为当前时间</li>
-             * </ul>
-             *
              * @param metaObject 元对象，包含实体类字段信息
              */
             @Override
             public void updateFill(MetaObject metaObject) {
-                // strictUpdateFill: 严格填充，仅在字段为 null 时填充
                 this.strictUpdateFill(metaObject, "updatedAt", LocalDateTime.class, LocalDateTime.now());
             }
         };

@@ -26,6 +26,7 @@ public enum ErrorCode {
     ACCESS_DENIED(2004, "无权限访问"),
     LOGIN_FAILED(2005, "用户不存在或密码错误"),
     ACCOUNT_DISABLED(2006, "账户已被禁用"),
+    ACCOUNT_LOCKED(2007, "账号已被锁定，请稍后重试"),
 
     // 用户错误 3xxx
     USER_NOT_FOUND(3000, "用户不存在"),

@@ -81,6 +81,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             }
         } catch (Exception e) {
             log.warn("JWT 认证失败: {}", e.getMessage());
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            response.setContentType("application/json;charset=UTF-8");
+            response.getWriter().write("{\"code\":" + ErrorCode.TOKEN_INVALID.getCode() + ",\"message\":\"" + ErrorCode.TOKEN_INVALID.getMessage() + "\",\"data\":null}");
+            return;
         }
 
         filterChain.doFilter(request, response);

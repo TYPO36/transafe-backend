@@ -5,6 +5,7 @@ import com.benmake.transafe.quota.service.QuotaService;
 import com.benmake.transafe.task.entity.TaskEntity;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.core.Message;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,17 +26,36 @@ public class TaskResultConsumer {
 
     private final TaskMapper taskMapper;
     private final QuotaService quotaService;
+    private final MessageRetryHandler retryHandler;
 
     /**
      * 接收解析结果
+     *
+     * <p>处理失败的消息会自动重试，超过最大重试次数后发送到死信队列。</p>
      */
     @RabbitListener(queues = "${rabbitmq.queue.result:file.parse.result}")
+    public void handleResult(Message message, Map<String, Object> result) {
+        String taskId = (String) result.get("taskId");
+
+        try {
+            processResult(result);
+            log.info("任务处理成功: taskId={}", taskId);
+        } catch (Exception e) {
+            log.error("任务处理失败: taskId={}, error={}", taskId, e.getMessage(), e);
+            // 处理失败，尝试重试
+            retryHandler.handleTaskResultFailure(message);
+        }
+    }
+
+    /**
+     * 处理解析结果
+     */
     @Transactional
-    public void handleResult(Map<String, Object> result) {
+    protected void processResult(Map<String, Object> result) {
         String taskId = (String) result.get("taskId");
         String status = (String) result.get("status");
 
-        log.info("接收解析结果: taskId={}, status={}", taskId, status);
+        log.info("处理解析结果: taskId={}, status={}", taskId, status);
 
         TaskEntity task = taskMapper.findByTaskId(taskId).orElse(null);
         if (task == null) {
