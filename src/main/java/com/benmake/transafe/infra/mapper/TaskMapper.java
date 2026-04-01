@@ -8,6 +8,7 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -29,6 +30,15 @@ public interface TaskMapper extends BaseMapper<TaskEntity> {
     Optional<TaskEntity> findByTaskId(@Param("taskId") String taskId);
 
     /**
+     * 根据文档ID查询任务
+     *
+     * @param documentId 文档ID
+     * @return 任务实体
+     */
+    @Select("SELECT * FROM task WHERE document_id = #{documentId}")
+    Optional<TaskEntity> findByDocumentId(@Param("documentId") Long documentId);
+
+    /**
      * 根据用户ID分页查询任务
      *
      * @param page 分页参数
@@ -48,4 +58,24 @@ public interface TaskMapper extends BaseMapper<TaskEntity> {
      */
     @Select("SELECT * FROM task WHERE user_id = #{userId} AND status = #{status} ORDER BY created_at DESC")
     IPage<TaskEntity> findByUserIdAndStatus(Page<TaskEntity> page, @Param("userId") Long userId, @Param("status") String status);
+
+    /**
+     * 根据任务类型查询任务
+     *
+     * @param taskType 任务类型
+     * @return 任务列表
+     */
+    @Select("SELECT * FROM task WHERE task_type = #{taskType} ORDER BY created_at DESC")
+    List<TaskEntity> findByTaskType(@Param("taskType") String taskType);
+
+    /**
+     * 根据用户ID和任务类型分页查询任务
+     *
+     * @param page 分页参数
+     * @param userId 用户ID
+     * @param taskType 任务类型
+     * @return 任务分页列表
+     */
+    @Select("SELECT * FROM task WHERE user_id = #{userId} AND task_type = #{taskType} ORDER BY created_at DESC")
+    IPage<TaskEntity> findByUserIdAndTaskType(Page<TaskEntity> page, @Param("userId") Long userId, @Param("taskType") String taskType);
 }

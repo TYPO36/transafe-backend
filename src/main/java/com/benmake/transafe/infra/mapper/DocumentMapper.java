@@ -29,18 +29,17 @@ public interface DocumentMapper extends BaseMapper<DocumentEntity> {
     Optional<DocumentEntity> findByFileId(@Param("fileId") String fileId);
 
     /**
-     * 根据fileId查询文档（连表查询获取文件信息）
+     * 根据fileId查询文档（合并后直接查询document表）
      *
      * @param fileId 文件唯一标识
      * @return 文档视图对象
      */
-    @Select("SELECT d.id, d.file_id, d.parent_id, d.root_id, d.parse_status, " +
-            "d.parse_error_code, d.parse_error_message, d.password_provided, " +
-            "d.is_attachment, d.priority, d.retry_count, d.content, " +
-            "d.created_at, d.updated_at, " +
-            "f.user_id, f.file_name, f.file_size, f.file_type, f.storage_path " +
-            "FROM document d LEFT JOIN file f ON d.file_id = f.file_id " +
-            "WHERE d.file_id = #{fileId}")
+    @Select("SELECT id, file_id, user_id, parent_id, root_id, " +
+            "file_name, file_size, file_type, storage_path, status, " +
+            "parse_status, parse_error_code, parse_error_message, password_provided, " +
+            "is_attachment, priority, retry_count, " +
+            "created_at, updated_at " +
+            "FROM document WHERE file_id = #{fileId}")
     Optional<DocumentVO> findByFileIdWithFile(@Param("fileId") String fileId);
 
     /**
@@ -88,4 +87,13 @@ public interface DocumentMapper extends BaseMapper<DocumentEntity> {
      */
     @Select("SELECT COUNT(*) FROM document WHERE root_id = #{rootId} AND parse_status = #{parseStatus}")
     long countByRootIdAndParseStatus(@Param("rootId") String rootId, @Param("parseStatus") String parseStatus);
+
+    /**
+     * 根据document主键ID查询文档
+     *
+     * @param documentId document主键ID
+     * @return 文档实体
+     */
+    @Select("SELECT * FROM document WHERE id = #{documentId}")
+    Optional<DocumentEntity> findByDocumentId(@Param("documentId") Long documentId);
 }

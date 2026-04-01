@@ -1,19 +1,21 @@
-package com.benmake.transafe.file.service;
+package com.benmake.transafe.document.service;
 
-import com.benmake.transafe.file.dto.FileInfoResponse;
-import com.benmake.transafe.file.dto.FileUploadResponse;
+import com.benmake.transafe.document.dto.FileInfoResponse;
+import com.benmake.transafe.document.dto.FileUploadResponse;
 import org.springframework.core.io.Resource;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.Map;
 
 /**
- * 文件代理服务接口
+ * 文档存储服务接口
  *
- * @author TYPO
- * @since 2026-03-31
+ * <p>提供文件的存储、下载、删除等核心功能</p>
+ *
+ * @author JTP
+ * @date 2026-04-01
  */
-public interface FileProxyService {
+public interface DocumentStorageService {
 
     /**
      * 上传文件

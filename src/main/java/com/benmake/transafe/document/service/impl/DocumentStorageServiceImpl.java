@@ -1,10 +1,10 @@
-package com.benmake.transafe.file.service.impl;
+package com.benmake.transafe.document.service.impl;
 
 import com.benmake.transafe.common.exception.BusinessException;
 import com.benmake.transafe.common.exception.ErrorCode;
-import com.benmake.transafe.file.dto.FileInfoResponse;
-import com.benmake.transafe.file.dto.FileUploadResponse;
-import com.benmake.transafe.file.service.FileProxyService;
+import com.benmake.transafe.document.dto.FileInfoResponse;
+import com.benmake.transafe.document.dto.FileUploadResponse;
+import com.benmake.transafe.document.service.DocumentStorageService;
 import com.benmake.transafe.quota.service.QuotaService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -15,7 +15,9 @@ import org.springframework.web.multipart.MultipartFile;
 import java.util.Map;
 
 /**
- * 文件代理服务实现
+ * 文档存储服务实现
+ *
+ * <p>基于LocalFileStorageService，增加了配额检查等功能</p>
  *
  * @author JTP
  * @date 2026-04-01
@@ -23,9 +25,9 @@ import java.util.Map;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class FileProxyServiceImpl implements FileProxyService {
+public class DocumentStorageServiceImpl implements DocumentStorageService {
 
-    private final com.benmake.transafe.file.service.impl.LocalFileStorageService localFileStorageService;
+    private final LocalFileStorageService localFileStorageService;
     private final QuotaService quotaService;
 
     @Override

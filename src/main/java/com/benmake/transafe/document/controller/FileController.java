@@ -1,8 +1,8 @@
-package com.benmake.transafe.file.controller;
+package com.benmake.transafe.document.controller;
 
 import com.benmake.transafe.common.response.ApiResponse;
-import com.benmake.transafe.file.dto.FileInfoResponse;
-import com.benmake.transafe.file.service.FileProxyService;
+import com.benmake.transafe.document.dto.FileInfoResponse;
+import com.benmake.transafe.document.service.DocumentStorageService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -15,29 +15,28 @@ import org.springframework.web.bind.annotation.*;
 import java.util.Map;
 
 /**
- * 文件控制器
- * <p>
- * 只负责文件存储的增删改查，不涉及文档解析
- * </p>
+ * 文件存储控制器
  *
- * @author TYPO
- * @date 2026-03-31
+ * <p>负责文件存储的增删改查，不涉及文档解析</p>
+ *
+ * @author JTP
+ * @date 2026-04-01
  */
-@Tag(name = "文件", description = "文件下载、列表、删除等操作接口")
+@Tag(name = "文件管理", description = "文件存储、下载、列表、删除等操作接口")
 @RestController
 @RequestMapping("/api/files")
 @RequiredArgsConstructor
 public class FileController {
 
-    private final FileProxyService fileProxyService;
+    private final DocumentStorageService documentStorageService;
 
     @Operation(summary = "下载文件", description = "根据文件ID下载文件")
     @GetMapping("/{fileId}/download")
     public ResponseEntity<Resource> downloadFile(
             @Parameter(description = "文件ID") @PathVariable String fileId,
             @Parameter(hidden = true) @AuthenticationPrincipal Long userId) {
-        Resource resource = fileProxyService.downloadFile(fileId, userId);
-        String fileName = fileProxyService.getFileName(fileId, userId);
+        Resource resource = documentStorageService.downloadFile(fileId, userId);
+        String fileName = documentStorageService.getFileName(fileId, userId);
         return ResponseEntity.ok()
                 .header("Content-Disposition", "attachment; filename=\"" + fileName + "\"")
                 .body(resource);
@@ -48,7 +47,7 @@ public class FileController {
     public ResponseEntity<ApiResponse<FileInfoResponse>> getFileInfo(
             @Parameter(description = "文件ID") @PathVariable String fileId,
             @Parameter(hidden = true) @AuthenticationPrincipal Long userId) {
-        FileInfoResponse result = fileProxyService.getFileInfo(fileId, userId);
+        FileInfoResponse result = documentStorageService.getFileInfo(fileId, userId);
         return ResponseEntity.ok(ApiResponse.success(result));
     }
 
@@ -58,7 +57,7 @@ public class FileController {
             @Parameter(hidden = true) @AuthenticationPrincipal Long userId,
             @Parameter(description = "页码，默认1") @RequestParam(defaultValue = "1") int page,
             @Parameter(description = "每页数量，默认20") @RequestParam(defaultValue = "20") int size) {
-        Map<String, Object> result = fileProxyService.listFiles(userId, page, size);
+        Map<String, Object> result = documentStorageService.listFiles(userId, page, size);
         return ResponseEntity.ok(ApiResponse.success(result));
     }
 
@@ -68,7 +67,7 @@ public class FileController {
             @Parameter(description = "文件ID") @PathVariable String fileId,
             @Parameter(description = "新文件名") @RequestParam("fileName") String fileName,
             @Parameter(hidden = true) @AuthenticationPrincipal Long userId) {
-        FileInfoResponse result = fileProxyService.updateFileInfo(fileId, userId, fileName);
+        FileInfoResponse result = documentStorageService.updateFileInfo(fileId, userId, fileName);
         return ResponseEntity.ok(ApiResponse.success(result));
     }
 
@@ -77,7 +76,7 @@ public class FileController {
     public ResponseEntity<ApiResponse<Void>> deleteFile(
             @Parameter(description = "文件ID") @PathVariable String fileId,
             @Parameter(hidden = true) @AuthenticationPrincipal Long userId) {
-        fileProxyService.deleteFile(fileId, userId);
+        documentStorageService.deleteFile(fileId, userId);
         return ResponseEntity.ok(ApiResponse.success("删除成功", null));
     }
 }

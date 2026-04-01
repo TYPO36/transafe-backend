@@ -4,10 +4,9 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.benmake.transafe.common.exception.BusinessException;
 import com.benmake.transafe.common.exception.ErrorCode;
-import com.benmake.transafe.file.dto.FileInfoResponse;
-import com.benmake.transafe.file.service.FileProxyService;
+import com.benmake.transafe.document.entity.DocumentEntity;
+import com.benmake.transafe.infra.mapper.DocumentMapper;
 import com.benmake.transafe.infra.mapper.TaskMapper;
-import com.benmake.transafe.quota.service.QuotaService;
 import com.benmake.transafe.task.dto.TaskCreateRequest;
 import com.benmake.transafe.task.dto.TaskResponse;
 import com.benmake.transafe.task.entity.TaskEntity;
@@ -34,23 +33,22 @@ import java.util.Map;
 public class TaskServiceImpl implements TaskService {
 
     private final TaskMapper taskMapper;
+    private final DocumentMapper documentMapper;
     private final TaskProducer taskProducer;
-    private final QuotaService quotaService;
-    private final FileProxyService fileProxyService;
 
     @Override
     @Transactional
     public TaskResponse createTask(TaskCreateRequest request, Long userId) {
-        // 获取文件信息
-        FileInfoResponse fileInfo = fileProxyService.getFileInfo(request.getFileId(), userId);
+        // 根据 fileId 查询 document 获取 documentId
+        DocumentEntity doc = documentMapper.findByFileId(request.getFileId())
+                .filter(d -> d.getUserId().equals(userId))
+                .orElseThrow(() -> new BusinessException(ErrorCode.FILE_NOT_FOUND));
 
         // 创建任务记录
         TaskEntity task = new TaskEntity();
         task.setTaskId(taskProducer.generateTaskId());
         task.setUserId(userId);
-        task.setFileId(request.getFileId());
-        task.setFileName(fileInfo.getFileName());
-        task.setFileType(fileInfo.getFileType());
+        task.setDocumentId(doc.getId());
         task.setStatus("PENDING");
         task.setCreatedAt(LocalDateTime.now());
 
@@ -59,7 +57,7 @@ public class TaskServiceImpl implements TaskService {
         // 发送任务消息
         taskProducer.sendParseTask(task);
 
-        log.info("创建任务成功: taskId={}, userId={}", task.getTaskId(), userId);
+        log.info("创建任务成功: taskId={}, userId={}, documentId={}", task.getTaskId(), userId, doc.getId());
 
         return toResponse(task);
     }
@@ -98,13 +96,38 @@ public class TaskServiceImpl implements TaskService {
     }
 
     private TaskResponse toResponse(TaskEntity task) {
+        // 通过 documentId 查询 document 获取文件信息
+        String fileName = null;
+        String fileType = null;
+        Integer charCount = null;
+
+        if (task.getDocumentId() != null) {
+            DocumentEntity doc = documentMapper.findByDocumentId(task.getDocumentId()).orElse(null);
+            if (doc != null) {
+                fileName = doc.getFileName();
+                fileType = doc.getFileType();
+            }
+        }
+
+        // 从 result JSON 解析 charCount
+        if (task.getResult() != null && task.getResult().contains("charCount")) {
+            try {
+                String resultJson = task.getResult();
+                int start = resultJson.indexOf("\"charCount\":") + 12;
+                int end = resultJson.indexOf("}", start);
+                charCount = Integer.parseInt(resultJson.substring(start, end).trim());
+            } catch (Exception e) {
+                log.warn("解析task result失败: taskId={}, result={}", task.getTaskId(), task.getResult());
+            }
+        }
+
         return TaskResponse.builder()
                 .taskId(task.getTaskId())
-                .fileId(task.getFileId())
-                .fileName(task.getFileName())
-                .fileType(task.getFileType())
+                .documentId(task.getDocumentId())
+                .fileName(fileName)
+                .fileType(fileType)
                 .status(task.getStatus())
-                .charCount(task.getCharCount())
+                .charCount(charCount)
                 .errorMessage(task.getErrorMessage())
                 .createdAt(task.getCreatedAt() != null ? task.getCreatedAt().toString() : null)
                 .completedAt(task.getCompletedAt() != null ? task.getCompletedAt().toString() : null)

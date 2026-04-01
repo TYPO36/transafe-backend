@@ -11,14 +11,18 @@ import java.util.Map;
 /**
  * 文档DTO
  *
- * @author TYPO
- * @date 2026-03-31
+ * <p>注意：content 字段已移除，内容存储在 ES 中</p>
+ *
+ * @author JTP
+ * @date 2026-04-01
  */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class DocumentDTO {
+
+    // ==================== 标识 ====================
 
     /**
      * 文件唯一标识
@@ -34,6 +38,8 @@ public class DocumentDTO {
      * 根文档file_id
      */
     private String rootId;
+
+    // ==================== 文件元数据 ====================
 
     /**
      * 原始文件名
@@ -54,6 +60,8 @@ public class DocumentDTO {
      * 文件存储路径
      */
     private String fileStoragePath;
+
+    // ==================== 解析状态 ====================
 
     /**
      * 解析状态: pending/parsing/parsed/failed
@@ -85,10 +93,7 @@ public class DocumentDTO {
      */
     private Integer priority;
 
-    /**
-     * 解析后的文本内容
-     */
-    private String content;
+    // ==================== 其他 ====================
 
     /**
      * 元数据

@@ -11,10 +11,8 @@ import com.benmake.transafe.document.parser.DocumentParser;
 import com.benmake.transafe.document.parser.ParserFactory;
 import com.benmake.transafe.document.service.DocumentIndexService;
 import com.benmake.transafe.document.service.ParseService;
-import com.benmake.transafe.file.entity.FileEntity;
-import com.benmake.transafe.file.service.impl.LocalFileStorageService;
+import com.benmake.transafe.document.service.impl.LocalFileStorageService;
 import com.benmake.transafe.infra.mapper.DocumentMapper;
-import com.benmake.transafe.infra.mapper.FileMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.compress.archivers.zip.ZipArchiveInputStream;
@@ -42,7 +40,6 @@ import java.util.stream.Collectors;
 public class ParseServiceImpl implements ParseService {
 
     private final DocumentMapper documentMapper;
-    private final FileMapper fileMapper;
     private final ParserFactory parserFactory;
     private final DocumentParseProducer producer;
     private final DocumentIndexService documentIndexService;
@@ -117,7 +114,6 @@ public class ParseServiceImpl implements ParseService {
     @Transactional
     public void processZipFile(DocumentEntity doc, ParseMessageDTO message) {
         try {
-            // 从 message 获取存储路径
             InputStream inputStream = getFileInputStream(message.getFileStoragePath());
             if (inputStream == null) {
                 handleParseError(doc, ParseErrorCode.STORAGE_ERROR, "无法读取ZIP文件");
@@ -133,7 +129,6 @@ public class ParseServiceImpl implements ParseService {
                     if (!entry.isDirectory()) {
                         String fileName = entry.getName();
 
-                        // 读取文件内容到内存
                         ByteArrayOutputStream baos = new ByteArrayOutputStream();
                         byte[] buffer = new byte[8192];
                         int read;
@@ -142,20 +137,22 @@ public class ParseServiceImpl implements ParseService {
                         }
                         byte[] content = baos.toByteArray();
 
-                        // 保存到存储服务（同时创建 file 记录）
-                        FileEntity fileEntity = fileStorageService.saveFileAndGetFileEntity(
+                        // 保存到存储服务（创建 document 记录）
+                        DocumentEntity savedDoc = fileStorageService.saveFileAndGetDocumentEntity(
                                 fileName, new ByteArrayInputStream(content), message.getUserId());
 
                         // 创建文档记录
                         LocalDateTime now = LocalDateTime.now();
                         DocumentEntity extractedDoc = new DocumentEntity();
-                        extractedDoc.setFileId(fileEntity.getFileId());
+                        extractedDoc.setFileId(savedDoc.getFileId());
+                        extractedDoc.setUserId(message.getUserId());
                         extractedDoc.setParentId(doc.getFileId());
                         extractedDoc.setRootId(rootId);
                         extractedDoc.setIsAttachment(true);
                         extractedDoc.setPriority(doc.getPriority());
                         extractedDoc.setParseStatus(ParseStatus.PENDING);
                         extractedDoc.setRetryCount(0);
+                        extractedDoc.setParseErrorCode(0);
                         extractedDoc.setCreatedAt(now);
                         extractedDoc.setUpdatedAt(now);
 
@@ -163,7 +160,7 @@ public class ParseServiceImpl implements ParseService {
                         extractedFiles.add(extractedDoc);
 
                         // 发送解析消息
-                        sendParseMessage(extractedDoc, fileEntity, message.getPassword());
+                        sendParseMessage(extractedDoc, savedDoc, message.getPassword());
                     }
                 }
             }
@@ -175,14 +172,13 @@ public class ParseServiceImpl implements ParseService {
             documentMapper.updateById(doc);
 
             // 获取 ZIP 文件信息用于索引
-            FileEntity zipFileEntity = fileMapper.findByFileId(doc.getFileId())
-                    .orElse(null);
+            DocumentEntity zipDoc = documentMapper.findByFileId(doc.getFileId()).orElse(null);
 
             // 索引ZIP文件（不含内容，只有附件列表）
-            DocumentIndex index = toDocumentIndex(doc, zipFileEntity, null, null);
+            DocumentIndex index = toDocumentIndex(doc, zipDoc, null, null);
             index.setAttachments(extractedFiles.stream()
                     .map(f -> {
-                        FileEntity fe = fileMapper.findByFileId(f.getFileId()).orElse(null);
+                        DocumentEntity fe = documentMapper.findByFileId(f.getFileId()).orElse(null);
                         return DocumentIndex.AttachmentInfo.builder()
                                 .name(fe != null ? fe.getFileName() : "")
                                 .size(fe != null ? fe.getFileSize() : 0)
@@ -205,22 +201,22 @@ public class ParseServiceImpl implements ParseService {
      * 处理解析成功
      */
     private void handleParseSuccess(DocumentEntity doc, DocumentParser.ParseResult result) {
+        // 注意：content 不再存入 MySQL，只存 ES
         doc.setParseStatus(ParseStatus.PARSED);
         doc.setParseErrorCode(0);
         doc.setParseErrorMessage(null);
-        doc.setContent(result.content()); // 存储解析内容
         doc.setUpdatedAt(LocalDateTime.now());
         documentMapper.updateById(doc);
 
-        // 获取文件信息用于索引
-        FileEntity fileEntity = fileMapper.findByFileId(doc.getFileId()).orElse(null);
+        // 获取文档信息用于索引
+        DocumentEntity docEntity = documentMapper.findByFileId(doc.getFileId()).orElse(null);
 
         // 索引到ES
-        DocumentIndex index = toDocumentIndex(doc, fileEntity, result.content(), result.metadata());
+        DocumentIndex index = toDocumentIndex(doc, docEntity, result.content(), result.metadata());
         documentIndexService.save(index);
 
-        // 处理附件（EML文件）- 从 fileEntity 获取文件类型
-        if (fileEntity != null && DocumentType.EML.name().equalsIgnoreCase(fileEntity.getFileType())) {
+        // 处理附件（EML文件）
+        if (docEntity != null && DocumentType.EML.name().equalsIgnoreCase(docEntity.getFileType())) {
             processEmailAttachments(doc, result.metadata());
         }
 
@@ -252,7 +248,6 @@ public class ParseServiceImpl implements ParseService {
         doc.setUpdatedAt(LocalDateTime.now());
         documentMapper.updateById(doc);
 
-        // 可重试错误，发送重试消息
         if (errorCode.isRetryable() && doc.getRetryCount() < 3) {
             producer.sendForRetry(toMessage(doc));
             log.info("文档解析失败但可重试: fileId={}, errorCode={}, retryCount={}",
@@ -276,15 +271,15 @@ public class ParseServiceImpl implements ParseService {
         String rootId = doc.getRootId() != null ? doc.getRootId() : doc.getFileId();
 
         // 获取父文档的 userId
-        FileEntity parentFileEntity = fileMapper.findByFileId(doc.getFileId()).orElse(null);
-        Long userId = parentFileEntity != null ? parentFileEntity.getUserId() : null;
+        DocumentEntity parentDoc = documentMapper.findByFileId(doc.getFileId()).orElse(null);
+        Long userId = parentDoc != null ? parentDoc.getUserId() : null;
 
         for (Map<String, Object> attachment : attachments) {
             String fileName = (String) attachment.get("name");
             String storagePath = (String) attachment.get("storagePath");
             String fileType = getFileType(fileName);
 
-            // 从存储路径中获取 fileId（格式：user_{userId}/yyyy/MM/dd/{fileId}）
+            // 从存储路径中获取 fileId
             String fileId = storagePath != null && storagePath.contains("/")
                     ? storagePath.substring(storagePath.lastIndexOf("/") + 1)
                     : null;
@@ -297,18 +292,19 @@ public class ParseServiceImpl implements ParseService {
             LocalDateTime now = LocalDateTime.now();
             DocumentEntity attachDoc = new DocumentEntity();
             attachDoc.setFileId(fileId);
+            attachDoc.setUserId(userId);
             attachDoc.setParentId(doc.getFileId());
             attachDoc.setRootId(rootId);
             attachDoc.setIsAttachment(true);
             attachDoc.setPriority(doc.getPriority());
             attachDoc.setParseStatus(ParseStatus.PENDING);
             attachDoc.setRetryCount(0);
+            attachDoc.setParseErrorCode(0);
             attachDoc.setCreatedAt(now);
             attachDoc.setUpdatedAt(now);
 
             documentMapper.insert(attachDoc);
 
-            // 发送解析消息（userId 从父文档的文件获取）
             ParseMessageDTO attachMessage = ParseMessageDTO.builder()
                     .fileId(fileId)
                     .parentId(doc.getFileId())
@@ -333,20 +329,20 @@ public class ParseServiceImpl implements ParseService {
     /**
      * 发送解析消息
      */
-    private void sendParseMessage(DocumentEntity doc, FileEntity fileEntity, String password) {
+    private void sendParseMessage(DocumentEntity doc, DocumentEntity docEntity, String password) {
         ParseMessageDTO message = ParseMessageDTO.builder()
                 .fileId(doc.getFileId())
                 .parentId(doc.getParentId())
                 .rootId(doc.getRootId())
-                .fileStoragePath(fileEntity.getStoragePath())
-                .fileType(fileEntity.getFileType())
-                .fileName(fileEntity.getFileName())
+                .fileStoragePath(docEntity.getStoragePath())
+                .fileType(docEntity.getFileType())
+                .fileName(docEntity.getFileName())
                 .isAttachment(doc.getIsAttachment())
                 .password(password)
                 .priority(doc.getPriority())
                 .retryCount(doc.getRetryCount())
                 .timestamp(LocalDateTime.now())
-                .userId(fileEntity.getUserId())
+                .userId(docEntity.getUserId())
                 .build();
 
         producer.send(message);
@@ -356,31 +352,37 @@ public class ParseServiceImpl implements ParseService {
      * 转换为ParseMessageDTO
      */
     private ParseMessageDTO toMessage(DocumentEntity doc) {
-        FileEntity fileEntity = fileMapper.findByFileId(doc.getFileId())
-                .orElseThrow(() -> new RuntimeException("文件不存在: " + doc.getFileId()));
+        DocumentEntity docEntity = documentMapper.findByFileId(doc.getFileId())
+                .orElseThrow(() -> new RuntimeException("文档不存在: " + doc.getFileId()));
 
         return ParseMessageDTO.builder()
                 .fileId(doc.getFileId())
                 .parentId(doc.getParentId())
                 .rootId(doc.getRootId())
-                .fileStoragePath(fileEntity.getStoragePath())
-                .fileType(fileEntity.getFileType())
-                .fileName(fileEntity.getFileName())
+                .fileStoragePath(docEntity.getStoragePath())
+                .fileType(docEntity.getFileType())
+                .fileName(docEntity.getFileName())
                 .isAttachment(doc.getIsAttachment())
                 .password(doc.getPasswordProvided())
                 .priority(doc.getPriority())
                 .retryCount(doc.getRetryCount())
                 .timestamp(LocalDateTime.now())
-                .userId(fileEntity.getUserId())
+                .userId(docEntity.getUserId())
                 .build();
     }
 
     /**
      * 转换为DocumentIndex
      */
-    private DocumentIndex toDocumentIndex(DocumentEntity doc, FileEntity fileEntity, String content, Map<String, Object> metadata) {
+    private DocumentIndex toDocumentIndex(DocumentEntity doc, DocumentEntity docEntity, String content, Map<String, Object> metadata) {
+        // 使用 doc 的 id 作为 documentId
+        Long documentId = doc.getId();
+        Long userId = doc.getUserId();
+
         DocumentIndex.DocumentIndexBuilder builder = DocumentIndex.builder()
+                .documentId(documentId)
                 .fileId(doc.getFileId())
+                .userId(userId)
                 .parentId(doc.getParentId())
                 .rootId(doc.getRootId())
                 .parseStatus(doc.getParseStatus())
@@ -393,13 +395,13 @@ public class ParseServiceImpl implements ParseService {
                 .createdAt(doc.getCreatedAt())
                 .updatedAt(doc.getUpdatedAt());
 
-        // 从 fileEntity 获取文件信息
-        if (fileEntity != null) {
-            builder.fileName(fileEntity.getFileName())
-                    .fileNameKeyword(fileEntity.getFileName())
-                    .fileSize(fileEntity.getFileSize())
-                    .fileStoragePath(fileEntity.getStoragePath())
-                    .fileType(fileEntity.getFileType());
+        // 从 docEntity 获取文件信息
+        if (docEntity != null) {
+            builder.fileName(docEntity.getFileName())
+                    .fileNameKeyword(docEntity.getFileName())
+                    .fileSize(docEntity.getFileSize())
+                    .fileStoragePath(docEntity.getStoragePath())
+                    .fileType(docEntity.getFileType());
         }
 
         if (content != null) {

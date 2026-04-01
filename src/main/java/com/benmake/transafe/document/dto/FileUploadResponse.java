@@ -1,4 +1,4 @@
-package com.benmake.transafe.file.dto;
+package com.benmake.transafe.document.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -8,8 +8,8 @@ import lombok.NoArgsConstructor;
 /**
  * 文件上传响应
  *
- * @author TYPO
- * @since 2026-03-30
+ * @author JTP
+ * @date 2026-04-01
  */
 @Data
 @Builder

@@ -71,7 +71,8 @@ public class TaskResultConsumer {
             Map<String, Object> metadata = (Map<String, Object>) result.get("metadata");
             if (metadata != null && metadata.get("charCount") != null) {
                 Integer charCount = ((Number) metadata.get("charCount")).intValue();
-                task.setCharCount(charCount);
+                // 将结果存入 result 字段（JSON格式）
+                task.setResult("{\"charCount\":" + charCount + "}");
 
                 // 更新配额消耗
                 quotaService.consumeTranslationQuota(task.getUserId(), charCount);

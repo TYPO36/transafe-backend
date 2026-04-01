@@ -17,8 +17,10 @@ import java.util.Map;
 /**
  * ES索引文档
  *
- * @author TYPO
- * @date 2026-03-31
+ * <p>用于全文搜索和内容检索</p>
+ *
+ * @author JTP
+ * @date 2026-04-01
  */
 @Data
 @Builder
@@ -28,10 +30,22 @@ import java.util.Map;
 public class DocumentIndex {
 
     /**
-     * 文件唯一标识
+     * MySQL document 表的主键ID
      */
     @Id
+    private Long documentId;
+
+    /**
+     * 文件唯一标识（UUID）
+     */
+    @Field(type = FieldType.Keyword)
     private String fileId;
+
+    /**
+     * 用户ID
+     */
+    @Field(type = FieldType.Long)
+    private Long userId;
 
     /**
      * 父文档file_id
@@ -44,6 +58,8 @@ public class DocumentIndex {
      */
     @Field(type = FieldType.Keyword)
     private String rootId;
+
+    // ==================== 文件元数据 ====================
 
     /**
      * 文件名（分词）
@@ -75,6 +91,8 @@ public class DocumentIndex {
     @Field(type = FieldType.Keyword)
     private String fileType;
 
+    // ==================== 内容（ES 存储） ====================
+
     /**
      * 文档内容（分词）
      */
@@ -86,6 +104,8 @@ public class DocumentIndex {
      */
     @Field(type = FieldType.Text, analyzer = "ik_max_word")
     private String translatedContent;
+
+    // ==================== 解析状态 ====================
 
     /**
      * 解析状态
@@ -123,6 +143,8 @@ public class DocumentIndex {
     @Field(type = FieldType.Integer)
     private Integer priority;
 
+    // ==================== 元数据 ====================
+
     /**
      * 元数据
      */
@@ -140,6 +162,8 @@ public class DocumentIndex {
      */
     @Field(type = FieldType.Nested)
     private List<AttachmentInfo> attachments;
+
+    // ==================== 审计字段 ====================
 
     /**
      * 创建时间
@@ -187,21 +211,12 @@ public class DocumentIndex {
     @AllArgsConstructor
     public static class AttachmentInfo {
 
-        /**
-         * 附件名称
-         */
         @Field(type = FieldType.Text)
         private String name;
 
-        /**
-         * 附件大小
-         */
         @Field(type = FieldType.Long)
         private Long size;
 
-        /**
-         * 附件file_id
-         */
         @Field(type = FieldType.Keyword)
         private String fileId;
     }

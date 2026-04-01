@@ -10,7 +10,7 @@ import java.time.LocalDateTime;
 /**
  * 文档视图对象
  *
- * <p>用于接收 DocumentMapper join file 表的查询结果</p>
+ * <p>合并后的文档视图，包含 document 表所有字段（不含 content，content 存 ES）</p>
  *
  * @author JTP
  * @date 2026-04-01
@@ -21,7 +21,7 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 public class DocumentVO {
 
-    // ==================== Document 表字段 ====================
+    // ==================== Document 主键 ====================
 
     /**
      * 文档主键ID
@@ -33,6 +33,40 @@ public class DocumentVO {
      */
     private String fileId;
 
+    // ==================== 用户与文件元数据 ====================
+
+    /**
+     * 用户ID
+     */
+    private Long userId;
+
+    /**
+     * 原始文件名
+     */
+    private String fileName;
+
+    /**
+     * 文件大小(字节)
+     */
+    private Long fileSize;
+
+    /**
+     * 文件类型
+     */
+    private String fileType;
+
+    /**
+     * 文件存储路径
+     */
+    private String storagePath;
+
+    /**
+     * 文件状态：UPLOADED-已上传，DELETED-已删除
+     */
+    private String status;
+
+    // ==================== 树结构关系 ====================
+
     /**
      * 父文档file_id，顶层为null
      */
@@ -42,6 +76,13 @@ public class DocumentVO {
      * 根文档file_id
      */
     private String rootId;
+
+    /**
+     * 是否为附件
+     */
+    private Boolean isAttachment;
+
+    // ==================== 解析状态 ====================
 
     /**
      * 解析状态: pending/parsing/parsed/failed
@@ -64,11 +105,6 @@ public class DocumentVO {
     private String passwordProvided;
 
     /**
-     * 是否为附件
-     */
-    private Boolean isAttachment;
-
-    /**
      * 优先级: 0普通, 1优先
      */
     private Integer priority;
@@ -78,10 +114,7 @@ public class DocumentVO {
      */
     private Integer retryCount;
 
-    /**
-     * 解析后的文本内容
-     */
-    private String content;
+    // ==================== 审计字段 ====================
 
     /**
      * 创建时间
@@ -92,31 +125,4 @@ public class DocumentVO {
      * 更新时间
      */
     private LocalDateTime updatedAt;
-
-    // ==================== File 表字段 (join 获取) ====================
-
-    /**
-     * 用户ID (from file)
-     */
-    private Long userId;
-
-    /**
-     * 原始文件名 (from file)
-     */
-    private String fileName;
-
-    /**
-     * 文件大小(字节) (from file)
-     */
-    private Long fileSize;
-
-    /**
-     * 文件类型 (from file)
-     */
-    private String fileType;
-
-    /**
-     * 文件存储路径 (from file)
-     */
-    private String storagePath;
 }
