@@ -15,33 +15,27 @@ import org.springframework.web.multipart.MultipartFile;
 public interface DocumentService {
 
     /**
-     * 创建文档记录
+     * 根据文件ID创建文档记录
      *
-     * @param fileName 文件名
-     * @param fileSize 文件大小
-     * @param storagePath 存储路径
-     * @param fileType 文件类型
+     * <p>文件元信息已在 file 表中，此方法仅创建文档关联记录</p>
+     *
+     * @param fileId 文件ID（关联 file 表）
      * @param userId 用户ID
      * @param isVip 是否为VIP
      * @return 文档DTO
      */
-    DocumentDTO createDocument(String fileName, Long fileSize, String storagePath,
-                               String fileType, Long userId, boolean isVip);
+    DocumentDTO createDocumentByFileId(String fileId, Long userId, boolean isVip);
 
     /**
-     * 创建文档记录（指定rootId）
+     * 根据文件ID创建文档记录（指定rootId）
      *
-     * @param fileName 文件名
-     * @param fileSize 文件大小
-     * @param storagePath 存储路径
-     * @param fileType 文件类型
+     * @param fileId 文件ID
      * @param userId 用户ID
      * @param isVip 是否为VIP
      * @param rootId 根文档ID
      * @return 文档DTO
      */
-    DocumentDTO createDocument(String fileName, Long fileSize, String storagePath,
-                               String fileType, Long userId, boolean isVip, String rootId);
+    DocumentDTO createDocumentByFileId(String fileId, Long userId, boolean isVip, String rootId);
 
     /**
      * 上传文件并创建文档记录

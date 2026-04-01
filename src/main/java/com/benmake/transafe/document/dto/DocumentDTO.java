@@ -86,6 +86,11 @@ public class DocumentDTO {
     private Integer priority;
 
     /**
+     * 解析后的文本内容
+     */
+    private String content;
+
+    /**
      * 元数据
      */
     private Map<String, Object> metadata;

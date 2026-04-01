@@ -14,6 +14,8 @@ import java.time.LocalDateTime;
 /**
  * 文档实体
  *
+ * <p>职责：文档解析任务与内容管理，通过 file_id 关联 file 表获取文件元信息</p>
+ *
  * @author JTP
  * @date 2026-04-01
  */
@@ -25,7 +27,7 @@ public class DocumentEntity {
     private Long id;
 
     /**
-     * 文件唯一标识(UUID)
+     * 文件唯一标识(UUID)，关联 file 表
      */
     @TableField("file_id")
     private String fileId;
@@ -37,40 +39,10 @@ public class DocumentEntity {
     private String parentId;
 
     /**
-     * 用户ID
-     */
-    @TableField("user_id")
-    private Long userId;
-
-    /**
      * 根文档file_id，所有关联文档指向顶层
      */
     @TableField("root_id")
     private String rootId;
-
-    /**
-     * 原始文件名
-     */
-    @TableField("file_name")
-    private String fileName;
-
-    /**
-     * 文件大小(字节)
-     */
-    @TableField("file_size")
-    private Long fileSize;
-
-    /**
-     * 文件存储路径
-     */
-    @TableField("file_storage_path")
-    private String fileStoragePath;
-
-    /**
-     * 文件类型: pdf,doc,docx,ppt,pptx,xls,xlsx,txt,eml
-     */
-    @TableField("file_type")
-    private String fileType;
 
     /**
      * 状态: pending/parsing/parsed/failed
@@ -113,6 +85,12 @@ public class DocumentEntity {
      */
     @TableField("retry_count")
     private Integer retryCount = 0;
+
+    /**
+     * 解析后的文本内容
+     */
+    @TableField("content")
+    private String content;
 
     /**
      * 创建时间

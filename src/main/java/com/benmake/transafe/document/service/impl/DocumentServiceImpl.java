@@ -12,7 +12,9 @@ import com.benmake.transafe.document.mq.DocumentParseProducer;
 import com.benmake.transafe.infra.mapper.DocumentMapper;
 import com.benmake.transafe.document.service.DocumentService;
 import com.benmake.transafe.file.dto.FileUploadResponse;
+import com.benmake.transafe.file.entity.FileEntity;
 import com.benmake.transafe.file.service.FileProxyService;
+import com.benmake.transafe.infra.mapper.FileMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -39,37 +41,33 @@ public class DocumentServiceImpl implements DocumentService {
     private final DocumentMapper documentMapper;
     private final DocumentParseProducer producer;
     private final FileProxyService fileProxyService;
+    private final FileMapper fileMapper;
 
     @Override
     @Transactional
-    public DocumentDTO createDocument(String fileName, Long fileSize, String storagePath,
-                                     String fileType, Long userId, boolean isVip) {
-        // 单文件上传时，rootId 设置为自身的 fileId
-        String fileId = UUID.randomUUID().toString().replace("-", "");
-        return doCreateDocument(fileId, null, fileName, fileSize, storagePath, fileType, userId, isVip);
+    public DocumentDTO createDocumentByFileId(String fileId, Long userId, boolean isVip) {
+        return doCreateDocument(fileId, null, userId, isVip);
     }
 
     @Override
     @Transactional
-    public DocumentDTO createDocument(String fileName, Long fileSize, String storagePath,
-                                     String fileType, Long userId, boolean isVip, String rootId) {
-        String fileId = UUID.randomUUID().toString().replace("-", "");
-        return doCreateDocument(fileId, rootId, fileName, fileSize, storagePath, fileType, userId, isVip);
+    public DocumentDTO createDocumentByFileId(String fileId, Long userId, boolean isVip, String rootId) {
+        return doCreateDocument(fileId, rootId, userId, isVip);
     }
 
     /**
      * 内部方法：创建文档记录
+     *
+     * @param fileId 文件ID（关联 file 表）
+     * @param rootId 根文档ID
+     * @param userId 用户ID
+     * @param isVip 是否为VIP
+     * @return 文档DTO
      */
-    private DocumentDTO doCreateDocument(String fileId, String rootId, String fileName, Long fileSize,
-                                       String storagePath, String fileType, Long userId, boolean isVip) {
+    private DocumentDTO doCreateDocument(String fileId, String rootId, Long userId, boolean isVip) {
         LocalDateTime now = LocalDateTime.now();
         DocumentEntity doc = new DocumentEntity();
         doc.setFileId(fileId);
-        doc.setUserId(userId);
-        doc.setFileName(fileName);
-        doc.setFileSize(fileSize);
-        doc.setFileStoragePath(storagePath);
-        doc.setFileType(fileType);
         doc.setParseStatus(ParseStatus.PENDING);
         doc.setIsAttachment(false);
         doc.setPriority(isVip ? 1 : 0);
@@ -82,14 +80,18 @@ public class DocumentServiceImpl implements DocumentService {
 
         documentMapper.insert(doc);
 
+        // 获取文件信息用于发送解析消息
+        FileEntity fileEntity = fileMapper.findByFileId(fileId)
+                .orElseThrow(() -> new RuntimeException("文件不存在: " + fileId));
+
         // 发送解析消息
         ParseMessageDTO message = ParseMessageDTO.builder()
                 .fileId(fileId)
                 .parentId(null)
                 .rootId(doc.getRootId())
-                .fileStoragePath(storagePath)
-                .fileType(fileType)
-                .fileName(fileName)
+                .fileStoragePath(fileEntity.getStoragePath())
+                .fileType(fileEntity.getFileType())
+                .fileName(fileEntity.getFileName())
                 .isAttachment(false)
                 .priority(isVip ? 1 : 0)
                 .retryCount(0)
@@ -99,9 +101,9 @@ public class DocumentServiceImpl implements DocumentService {
 
         producer.send(message);
 
-        log.info("文档创建成功: fileId={}, rootId={}, fileName={}, isVip={}", fileId, doc.getRootId(), fileName, isVip);
+        log.info("文档创建成功: fileId={}, rootId={}, userId={}, isVip={}", fileId, doc.getRootId(), userId, isVip);
 
-        return toDTO(doc);
+        return toDTO(fileEntity, doc);
     }
 
     @Override
@@ -111,14 +113,7 @@ public class DocumentServiceImpl implements DocumentService {
         FileUploadResponse fileResponse = fileProxyService.uploadFile(file, userId);
 
         // 2. 创建文档记录
-        return createDocument(
-                fileResponse.getFileName(),
-                fileResponse.getFileSize(),
-                fileResponse.getFileId(),
-                fileResponse.getFileType(),
-                userId,
-                isVip
-        );
+        return createDocumentByFileId(fileResponse.getFileId(), userId, isVip);
     }
 
     @Override
@@ -129,15 +124,11 @@ public class DocumentServiceImpl implements DocumentService {
         int failed = 0;
 
         // 为批量上传创建根文档，用于跟踪整个批次的解析进度
+        // 注意：批量根文档没有对应的 file 记录，只是一个虚拟的根节点
         String batchRootId = UUID.randomUUID().toString().replace("-", "");
         LocalDateTime now = LocalDateTime.now();
         DocumentEntity batchRoot = new DocumentEntity();
         batchRoot.setFileId(batchRootId);
-        batchRoot.setUserId(userId);
-        batchRoot.setFileName("批量上传_" + System.currentTimeMillis());
-        batchRoot.setFileSize(0L);
-        batchRoot.setFileStoragePath(null);
-        batchRoot.setFileType("batch");
         batchRoot.setParseStatus(ParseStatus.PENDING);
         batchRoot.setIsAttachment(false);
         batchRoot.setPriority(isVip ? 1 : 0);
@@ -145,20 +136,20 @@ public class DocumentServiceImpl implements DocumentService {
         batchRoot.setParseErrorCode(0);
         batchRoot.setCreatedAt(now);
         batchRoot.setUpdatedAt(now);
+        // 批量根文档的 rootId 就是自己
+        batchRoot.setRootId(batchRootId);
         documentMapper.insert(batchRoot);
 
         for (MultipartFile file : files) {
             try {
-                // 上传文件并创建文档记录
+                // 上传文件
                 FileUploadResponse fileResponse = fileProxyService.uploadFile(file, userId);
-                DocumentDTO doc = createDocument(
-                        fileResponse.getFileName(),
-                        fileResponse.getFileSize(),
+                // 创建文档记录，设置 rootId 指向批量根文档
+                DocumentDTO doc = createDocumentByFileId(
                         fileResponse.getFileId(),
-                        fileResponse.getFileType(),
                         userId,
                         isVip,
-                        batchRootId // 设置 rootId 指向批量根文档
+                        batchRootId
                 );
 
                 items.add(BatchUploadResponse.UploadItem.builder()
@@ -184,9 +175,9 @@ public class DocumentServiceImpl implements DocumentService {
 
     @Override
     public DocumentDTO getDocument(String fileId) {
-        DocumentEntity doc = documentMapper.findByFileId(fileId)
+        return documentMapper.findByFileIdWithFile(fileId)
+                .map(this::toDTO)
                 .orElseThrow(() -> new RuntimeException("文档不存在: " + fileId));
-        return toDTO(doc);
     }
 
     @Override
@@ -196,9 +187,9 @@ public class DocumentServiceImpl implements DocumentService {
 
     @Override
     public DocumentTreeDTO getDocumentTree(String fileId) {
-        DocumentEntity doc = documentMapper.findByFileId(fileId)
+        return documentMapper.findByFileIdWithFile(fileId)
+                .map(this::buildTree)
                 .orElseThrow(() -> new RuntimeException("文档不存在: " + fileId));
-        return buildTree(doc);
     }
 
     @Override
@@ -257,28 +248,36 @@ public class DocumentServiceImpl implements DocumentService {
     /**
      * 构建文档树
      */
-    private DocumentTreeDTO buildTree(DocumentEntity doc) {
+    private DocumentTreeDTO buildTree(com.benmake.transafe.document.vo.DocumentVO vo) {
         DocumentTreeDTO.DocumentTreeDTOBuilder builder = DocumentTreeDTO.builder()
-                .fileId(doc.getFileId())
-                .parentId(doc.getParentId())
-                .rootId(doc.getRootId())
-                .fileName(doc.getFileName())
-                .fileSize(doc.getFileSize())
-                .fileType(doc.getFileType())
-                .parseStatus(doc.getParseStatus())
-                .parseErrorCode(doc.getParseErrorCode())
-                .parseErrorMessage(doc.getParseErrorMessage())
-                .hasPassword(doc.getParseErrorCode() != null
-                        && doc.getParseErrorCode() == ParseErrorCode.PASSWORD_PROTECTED.getCode())
-                .isAttachment(doc.getIsAttachment())
-                .priority(doc.getPriority());
+                .fileId(vo.getFileId())
+                .parentId(vo.getParentId())
+                .rootId(vo.getRootId())
+                .fileName(vo.getFileName())
+                .fileSize(vo.getFileSize())
+                .fileType(vo.getFileType())
+                .parseStatus(vo.getParseStatus())
+                .parseErrorCode(vo.getParseErrorCode())
+                .parseErrorMessage(vo.getParseErrorMessage())
+                .hasPassword(vo.getParseErrorCode() != null
+                        && vo.getParseErrorCode() == ParseErrorCode.PASSWORD_PROTECTED.getCode())
+                .isAttachment(vo.getIsAttachment())
+                .priority(vo.getPriority());
 
         // 递归获取子文档
-        List<DocumentEntity> children = documentMapper.findByParentId(doc.getFileId());
+        List<DocumentEntity> children = documentMapper.findByParentId(vo.getFileId());
         if (!children.isEmpty()) {
-            builder.children(children.stream()
-                    .map(this::buildTree)
-                    .collect(Collectors.toList()));
+            // 子文档需要获取文件信息
+            List<DocumentTreeDTO> childTrees = children.stream()
+                    .map(childDoc -> {
+                        // 每个子文档单独查询文件信息
+                        return documentMapper.findByFileIdWithFile(childDoc.getFileId())
+                                .map(this::buildTree)
+                                .orElse(null);
+                    })
+                    .filter(tree -> tree != null)
+                    .collect(Collectors.toList());
+            builder.children(childTrees);
         }
 
         return builder.build();
@@ -287,15 +286,15 @@ public class DocumentServiceImpl implements DocumentService {
     /**
      * 转换为DTO
      */
-    private DocumentDTO toDTO(DocumentEntity doc) {
+    private DocumentDTO toDTO(FileEntity fileEntity, DocumentEntity doc) {
         return DocumentDTO.builder()
                 .fileId(doc.getFileId())
                 .parentId(doc.getParentId())
                 .rootId(doc.getRootId())
-                .fileName(doc.getFileName())
-                .fileSize(doc.getFileSize())
-                .fileType(doc.getFileType())
-                .fileStoragePath(doc.getFileStoragePath())
+                .fileName(fileEntity.getFileName())
+                .fileSize(fileEntity.getFileSize())
+                .fileType(fileEntity.getFileType())
+                .fileStoragePath(fileEntity.getStoragePath())
                 .parseStatus(doc.getParseStatus())
                 .parseErrorCode(doc.getParseErrorCode())
                 .parseErrorMessage(doc.getParseErrorMessage())
@@ -303,8 +302,34 @@ public class DocumentServiceImpl implements DocumentService {
                         && doc.getParseErrorCode() == ParseErrorCode.PASSWORD_PROTECTED.getCode())
                 .isAttachment(doc.getIsAttachment())
                 .priority(doc.getPriority())
+                .content(doc.getContent())
                 .createdAt(doc.getCreatedAt())
                 .updatedAt(doc.getUpdatedAt())
+                .build();
+    }
+
+    /**
+     * 转换为DTO（从 DocumentVO）
+     */
+    private DocumentDTO toDTO(com.benmake.transafe.document.vo.DocumentVO vo) {
+        return DocumentDTO.builder()
+                .fileId(vo.getFileId())
+                .parentId(vo.getParentId())
+                .rootId(vo.getRootId())
+                .fileName(vo.getFileName())
+                .fileSize(vo.getFileSize())
+                .fileType(vo.getFileType())
+                .fileStoragePath(vo.getStoragePath())
+                .parseStatus(vo.getParseStatus())
+                .parseErrorCode(vo.getParseErrorCode())
+                .parseErrorMessage(vo.getParseErrorMessage())
+                .hasPassword(vo.getParseErrorCode() != null
+                        && vo.getParseErrorCode() == ParseErrorCode.PASSWORD_PROTECTED.getCode())
+                .isAttachment(vo.getIsAttachment())
+                .priority(vo.getPriority())
+                .content(vo.getContent())
+                .createdAt(vo.getCreatedAt())
+                .updatedAt(vo.getUpdatedAt())
                 .build();
     }
 
@@ -312,19 +337,22 @@ public class DocumentServiceImpl implements DocumentService {
      * 转换为ParseMessageDTO
      */
     private ParseMessageDTO toMessage(DocumentEntity doc) {
+        FileEntity fileEntity = fileMapper.findByFileId(doc.getFileId())
+                .orElseThrow(() -> new RuntimeException("文件不存在: " + doc.getFileId()));
+
         return ParseMessageDTO.builder()
                 .fileId(doc.getFileId())
                 .parentId(doc.getParentId())
                 .rootId(doc.getRootId())
-                .fileStoragePath(doc.getFileStoragePath())
-                .fileType(doc.getFileType())
-                .fileName(doc.getFileName())
+                .fileStoragePath(fileEntity.getStoragePath())
+                .fileType(fileEntity.getFileType())
+                .fileName(fileEntity.getFileName())
                 .isAttachment(doc.getIsAttachment())
                 .password(doc.getPasswordProvided())
                 .priority(doc.getPriority())
                 .retryCount(doc.getRetryCount())
                 .timestamp(LocalDateTime.now())
-                .userId(doc.getUserId())
+                .userId(fileEntity.getUserId())
                 .build();
     }
 }

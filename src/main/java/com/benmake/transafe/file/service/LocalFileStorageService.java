@@ -176,6 +176,7 @@ public class LocalFileStorageService {
                     .fileName(originalFilename)
                     .fileSize(file.getSize())
                     .fileType(fileType)
+                    .storagePath(relativePath)
                     .build();
 
         } catch (IOException e) {
@@ -509,29 +510,63 @@ public class LocalFileStorageService {
      * </ul>
      *
      * <h4>注意</h4>
-     * <p>此方法只保存物理文件，不创建数据库记录。
-     * 如需持久化，应调用 uploadFile 方法或手动创建记录。</p>
+     * <p>此方法会同时保存物理文件并创建 file 表记录。</p>
      *
-     * @param fileName 文件名（仅用于日志记录）
+     * @param fileName 文件名
      * @param content  文件内容输入流
      * @param userId   用户 ID
      * @return String 相对存储路径
      * @throws BusinessException 文件保存失败时抛出
      */
     public String saveFile(String fileName, InputStream content, Long userId) {
+        return saveFileAndGetFileEntity(fileName, content, userId).getStoragePath();
+    }
+
+    /**
+     * 保存文件内容并返回文件实体
+     *
+     * <p>供文档解析器使用，返回完整的文件实体信息。</p>
+     *
+     * @param fileName 文件名
+     * @param content  文件内容输入流
+     * @param userId   用户 ID
+     * @return FileEntity 文件实体
+     * @throws BusinessException 文件保存失败时抛出
+     */
+    public FileEntity saveFileAndGetFileEntity(String fileName, InputStream content, Long userId) {
         String fileId = generateFileId();
+        String fileType = getFileExtension(fileName);
         String datePath = LocalDateTime.now().format(DATE_PATH_FORMATTER);
         String relativePath = "user_" + userId + "/" + datePath + "/" + fileId;
 
         try {
+            // 读取内容到字节数组（用于获取大小和写入文件）
+            byte[] contentBytes = content.readAllBytes();
+            long fileSize = contentBytes.length;
+
+            // 创建目录并保存物理文件
             Path targetDir = Paths.get(fileStorageConfig.getLocalPath(), "user_" + userId, datePath);
             Files.createDirectories(targetDir);
-
             Path targetPath = targetDir.resolve(fileId);
-            Files.copy(content, targetPath, StandardCopyOption.REPLACE_EXISTING);
+            Files.write(targetPath, contentBytes);
 
-            log.info("文件保存成功: fileId={}, fileName={}, path={}", fileId, fileName, relativePath);
-            return relativePath;
+            // 插入 file 表记录
+            LocalDateTime now = LocalDateTime.now();
+            FileEntity fileEntity = FileEntity.builder()
+                    .fileId(fileId)
+                    .userId(userId)
+                    .fileName(fileName)
+                    .fileSize(fileSize)
+                    .fileType(fileType)
+                    .storagePath(relativePath)
+                    .status("UPLOADED")
+                    .createdAt(now)
+                    .updatedAt(now)
+                    .build();
+            fileMapper.insertFileEntity(fileEntity);
+
+            log.info("文件保存成功: fileId={}, fileName={}, size={}, path={}", fileId, fileName, fileSize, relativePath);
+            return fileEntity;
         } catch (IOException e) {
             log.error("文件保存失败: fileName={}, error={}", fileName, e.getMessage(), e);
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "文件保存失败");

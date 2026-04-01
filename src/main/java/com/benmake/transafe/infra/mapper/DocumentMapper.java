@@ -2,6 +2,7 @@ package com.benmake.transafe.infra.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.benmake.transafe.document.entity.DocumentEntity;
+import com.benmake.transafe.document.vo.DocumentVO;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
@@ -26,6 +27,21 @@ public interface DocumentMapper extends BaseMapper<DocumentEntity> {
      */
     @Select("SELECT * FROM document WHERE file_id = #{fileId}")
     Optional<DocumentEntity> findByFileId(@Param("fileId") String fileId);
+
+    /**
+     * 根据fileId查询文档（连表查询获取文件信息）
+     *
+     * @param fileId 文件唯一标识
+     * @return 文档视图对象
+     */
+    @Select("SELECT d.id, d.file_id, d.parent_id, d.root_id, d.parse_status, " +
+            "d.parse_error_code, d.parse_error_message, d.password_provided, " +
+            "d.is_attachment, d.priority, d.retry_count, d.content, " +
+            "d.created_at, d.updated_at, " +
+            "f.user_id, f.file_name, f.file_size, f.file_type, f.storage_path " +
+            "FROM document d LEFT JOIN file f ON d.file_id = f.file_id " +
+            "WHERE d.file_id = #{fileId}")
+    Optional<DocumentVO> findByFileIdWithFile(@Param("fileId") String fileId);
 
     /**
      * 根据父ID查询子文档列表

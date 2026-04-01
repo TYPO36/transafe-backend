@@ -81,6 +81,11 @@ public class DocumentTreeDTO {
     private Integer priority;
 
     /**
+     * 解析后的文本内容
+     */
+    private String content;
+
+    /**
      * 子文档列表（递归）
      */
     @Builder.Default

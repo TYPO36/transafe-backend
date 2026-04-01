@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.benmake.transafe.file.entity.FileEntity;
+import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
@@ -86,4 +87,14 @@ public interface FileMapper extends BaseMapper<FileEntity> {
             "</foreach>" +
             "</script>")
     int batchDeleteByUserId(@Param("userId") Long userId, @Param("fileIds") List<String> fileIds);
+
+    /**
+     * 插入文件实体（供解析服务创建解压文件、附件等场景使用）
+     *
+     * @param fileEntity 文件实体
+     * @return 插入行数
+     */
+    @Insert("INSERT INTO file (file_id, user_id, file_name, file_size, file_type, storage_path, status, created_at, updated_at) " +
+            "VALUES (#{fileId}, #{userId}, #{fileName}, #{fileSize}, #{fileType}, #{storagePath}, #{status}, #{createdAt}, #{updatedAt})")
+    int insertFileEntity(FileEntity fileEntity);
 }

@@ -57,30 +57,40 @@ public class AdminInitializer implements CommandLineRunner {
             Optional<UserEntity> existingAdminOpt = userMapper.findByUsername(ADMIN_USERNAME);
 
             if (existingAdminOpt.isEmpty()) {
-                UserEntity admin = new UserEntity();
-                admin.setUsername(ADMIN_USERNAME);
-                admin.setPassword(passwordEncoder.encode(ADMIN_PASSWORD));
-                admin.setNickname("超级管理员");
-                admin.setMembershipLevel(1);
-                admin.setStatus("ACTIVE");
-                admin.setRole("SUPER_ADMIN");
+                try {
+                    UserEntity admin = new UserEntity();
+                    admin.setUsername(ADMIN_USERNAME);
+                    admin.setPassword(passwordEncoder.encode(ADMIN_PASSWORD));
+                    admin.setNickname("超级管理员");
+                    admin.setMembershipLevel(1);
+                    admin.setStatus("ACTIVE");
+                    admin.setRole("SUPER_ADMIN");
 
-                userMapper.insert(admin);
+                    userMapper.insert(admin);
 
-                log.info("超级管理员账户已创建: username={}, password={}", ADMIN_USERNAME, ADMIN_PASSWORD);
-                log.warn("【安全警告】请立即修改默认管理员密码！");
-            } else {
-                UserEntity existingAdmin = existingAdminOpt.get();
-                // 确保 role 字段正确
-                if (!"SUPER_ADMIN".equals(existingAdmin.getRole())) {
-                    existingAdmin.setRole("SUPER_ADMIN");
-                    userMapper.updateById(existingAdmin);
-                    log.info("已更新管理员角色: username={}", ADMIN_USERNAME);
+                    log.info("超级管理员账户已创建: username={}, password={}", ADMIN_USERNAME, ADMIN_PASSWORD);
+                    log.warn("【安全警告】请立即修改默认管理员密码！");
+                } catch (Exception insertEx) {
+                    // 可能是 role 列不存在，降级创建不含 role 的管理员
+                    if (insertEx.getMessage() != null && insertEx.getMessage().contains("role")) {
+                        log.warn("role 列不存在，使用兼容模式创建管理员");
+                        UserEntity admin = new UserEntity();
+                        admin.setUsername(ADMIN_USERNAME);
+                        admin.setPassword(passwordEncoder.encode(ADMIN_PASSWORD));
+                        admin.setNickname("超级管理员");
+                        admin.setMembershipLevel(1);
+                        admin.setStatus("ACTIVE");
+                        userMapper.insert(admin);
+                        log.info("超级管理员账户已创建(兼容模式): username={}, password={}", ADMIN_USERNAME, ADMIN_PASSWORD);
+                    } else {
+                        throw insertEx;
+                    }
                 }
+            } else {
                 log.debug("管理员账户已存在: username={}", ADMIN_USERNAME);
             }
         } catch (Exception e) {
-            log.error("初始化管理员账户失败", e);
+            log.warn("初始化管理员账户失败: {}", e.getMessage());
         }
     }
 }
