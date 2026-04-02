@@ -13,6 +13,10 @@ import com.benmake.transafe.document.service.DocumentIndexService;
 import com.benmake.transafe.document.service.ParseService;
 import com.benmake.transafe.document.service.impl.LocalFileStorageService;
 import com.benmake.transafe.infra.mapper.DocumentMapper;
+import com.benmake.transafe.infra.mapper.TaskMapper;
+import com.benmake.transafe.task.entity.TaskEntity;
+import com.benmake.transafe.translate.dto.TranslateMessageDTO;
+import com.benmake.transafe.translate.mq.TranslateTaskProducer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.compress.archivers.zip.ZipArchiveInputStream;
@@ -26,6 +30,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
@@ -44,6 +49,8 @@ public class ParseServiceImpl implements ParseService {
     private final DocumentParseProducer producer;
     private final DocumentIndexService documentIndexService;
     private final LocalFileStorageService fileStorageService;
+    private final TaskMapper taskMapper;
+    private final TranslateTaskProducer translateTaskProducer;
 
     @Override
     @Transactional
@@ -219,6 +226,9 @@ public class ParseServiceImpl implements ParseService {
         if (docEntity != null && DocumentType.EML.name().equalsIgnoreCase(docEntity.getFileType())) {
             processEmailAttachments(doc, result.metadata());
         }
+
+        // 检查是否需要翻译，触发翻译任务
+        checkAndTriggerTranslation(doc);
 
         log.info("文档解析成功: fileId={}", doc.getFileId());
     }
@@ -454,5 +464,65 @@ public class ParseServiceImpl implements ParseService {
      */
     private InputStream getFileInputStream(String storagePath) {
         return fileStorageService.getFileInputStream(storagePath);
+    }
+
+    /**
+     * 检查并触发翻译任务
+     *
+     * <p>如果文档标记为需要翻译，则创建翻译任务并发送到翻译队列</p>
+     */
+    private void checkAndTriggerTranslation(DocumentEntity doc) {
+        // 检查是否需要翻译
+        if (!Boolean.TRUE.equals(doc.getNeedTranslate()) || doc.getTargetLang() == null) {
+            return;
+        }
+
+        // 获取完整的文档信息
+        DocumentEntity docEntity = documentMapper.findByFileId(doc.getFileId()).orElse(null);
+        if (docEntity == null) {
+            log.warn("无法找到文档，跳过翻译: fileId={}", doc.getFileId());
+            return;
+        }
+
+        // 更新翻译状态
+        doc.setTranslateStatus("pending");
+        documentMapper.updateById(doc);
+
+        // 创建翻译任务
+        TaskEntity translateTask = new TaskEntity();
+        translateTask.setTaskId(generateTaskId());
+        translateTask.setUserId(doc.getUserId());
+        translateTask.setDocumentId(doc.getId());
+        translateTask.setTaskType("TRANSLATE");
+        translateTask.setStatus("pending");
+        translateTask.setCreatedAt(LocalDateTime.now());
+
+        taskMapper.insert(translateTask);
+
+        // 发送翻译消息
+        TranslateMessageDTO message = TranslateMessageDTO.builder()
+                .fileId(doc.getFileId())
+                .taskId(translateTask.getTaskId())
+                .userId(doc.getUserId())
+                .sourceLang(doc.getSourceLang() != null ? doc.getSourceLang() : "auto")
+                .targetLang(doc.getTargetLang())
+                .priority(doc.getPriority())
+                .retryCount(0)
+                .timestamp(LocalDateTime.now())
+                .build();
+
+        // 根据优先级选择队列
+        boolean isVip = doc.getPriority() != null && doc.getPriority() == 1;
+        translateTaskProducer.sendByPriority(message, isVip);
+
+        log.info("翻译任务已创建: fileId={}, taskId={}, targetLang={}",
+                doc.getFileId(), translateTask.getTaskId(), doc.getTargetLang());
+    }
+
+    /**
+     * 生成任务ID
+     */
+    private String generateTaskId() {
+        return "task-" + UUID.randomUUID().toString().replace("-", "").substring(0, 16);
     }
 }

@@ -79,6 +79,13 @@ quota:
     daily-translation: 5000                               # 每日翻译字符数限制（字符/天）
     storage: 5368709120                                   # 存储空间限制（字节），5368709120 = 5GB，10737418240 = 10GB
 
+# 翻译服务配置
+translate:
+  mymemory:
+    email: ""                                              # MyMemory 邮箱（可选，提升配额到 30000 字符/天）
+  max-segment-chars: 5000                                  # 单次翻译最大字符数，超过会分段翻译
+  retry-limit: 3                                           # 翻译失败重试次数
+
 # 日志配置
 logging:
   level:

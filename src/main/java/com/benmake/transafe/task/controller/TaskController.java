@@ -32,7 +32,7 @@ public class TaskController {
     @Operation(summary = "创建任务", description = "创建一个新的翻译任务")
     @PostMapping
     public ResponseEntity<ApiResponse<TaskResponse>> createTask(
-            @Valid @RequestBody TaskCreateRequest request,
+            @RequestBody TaskCreateRequest request,
             @Parameter(hidden = true) @AuthenticationPrincipal Long userId) {
         TaskResponse response = taskService.createTask(request, userId);
         return ResponseEntity.ok(ApiResponse.success(response));

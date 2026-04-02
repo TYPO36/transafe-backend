@@ -43,13 +43,13 @@ public class DocumentServiceImpl implements DocumentService {
     @Override
     @Transactional
     public DocumentDTO createDocumentByFileId(String fileId, Long userId, boolean isVip) {
-        return doCreateDocument(fileId, null, userId, isVip, null, null, null, null);
+        return doCreateDocument(fileId, null, userId, isVip, null, null, null, null, false, null, null);
     }
 
     @Override
     @Transactional
     public DocumentDTO createDocumentByFileId(String fileId, Long userId, boolean isVip, String rootId) {
-        return doCreateDocument(fileId, rootId, userId, isVip, null, null, null, null);
+        return doCreateDocument(fileId, rootId, userId, isVip, null, null, null, null, false, null, null);
     }
 
     /**
@@ -58,24 +58,26 @@ public class DocumentServiceImpl implements DocumentService {
     @Transactional
     public DocumentDTO createDocumentWithFile(String fileId, Long userId, boolean isVip, String rootId,
             String fileName, Long fileSize, String fileType, String storagePath) {
-        return doCreateDocument(fileId, rootId, userId, isVip, fileName, fileSize, fileType, storagePath);
+        return createDocumentWithFile(fileId, userId, isVip, rootId, fileName, fileSize, fileType, storagePath, false, null, null);
+    }
+
+    /**
+     * 使用完整文件元数据创建文档（支持翻译）
+     */
+    @Transactional
+    public DocumentDTO createDocumentWithFile(String fileId, Long userId, boolean isVip, String rootId,
+            String fileName, Long fileSize, String fileType, String storagePath,
+            boolean needTranslate, String targetLang, String sourceLang) {
+        return doCreateDocument(fileId, rootId, userId, isVip, fileName, fileSize, fileType, storagePath,
+                needTranslate, targetLang, sourceLang);
     }
 
     /**
      * 内部方法：创建文档记录
-     *
-     * @param fileId 文件ID
-     * @param rootId 根文档ID
-     * @param userId 用户ID
-     * @param isVip 是否为VIP
-     * @param fileName 文件名（可选）
-     * @param fileSize 文件大小（可选）
-     * @param fileType 文件类型（可选）
-     * @param storagePath 存储路径（可选）
-     * @return 文档DTO
      */
     private DocumentDTO doCreateDocument(String fileId, String rootId, Long userId, boolean isVip,
-            String fileName, Long fileSize, String fileType, String storagePath) {
+            String fileName, Long fileSize, String fileType, String storagePath,
+            boolean needTranslate, String targetLang, String sourceLang) {
         LocalDateTime now = LocalDateTime.now();
         DocumentEntity doc = new DocumentEntity();
         doc.setFileId(fileId);
@@ -94,6 +96,14 @@ public class DocumentServiceImpl implements DocumentService {
         doc.setUpdatedAt(now);
         // rootId：如果指定了就用指定的，否则就是自己的 fileId（单文件场景）
         doc.setRootId(rootId != null ? rootId : fileId);
+
+        // 处理翻译参数
+        if (needTranslate && targetLang != null && !targetLang.isBlank()) {
+            doc.setNeedTranslate(true);
+            doc.setTargetLang(targetLang);
+            doc.setSourceLang(sourceLang != null ? sourceLang : "auto");
+            doc.setTranslateStatus("pending");
+        }
 
         documentMapper.insert(doc);
 
@@ -126,6 +136,16 @@ public class DocumentServiceImpl implements DocumentService {
     @Override
     @Transactional
     public DocumentDTO uploadAndCreateDocument(MultipartFile file, Long userId, boolean isVip) {
+        return uploadAndCreateDocument(file, userId, isVip, null, null);
+    }
+
+    @Override
+    @Transactional
+    public DocumentDTO uploadAndCreateDocument(MultipartFile file, Long userId, boolean isVip,
+            String targetLang, String sourceLang) {
+        // 判断是否需要翻译（在Service层处理业务逻辑）
+        boolean needTranslate = targetLang != null && !targetLang.isBlank();
+
         // 1. 先上传文件到存储服务
         FileUploadResponse fileResponse = documentStorageService.uploadFile(file, userId);
 
@@ -138,13 +158,25 @@ public class DocumentServiceImpl implements DocumentService {
                 fileResponse.getFileName(),
                 fileResponse.getFileSize(),
                 fileResponse.getFileType(),
-                fileResponse.getStoragePath()
+                fileResponse.getStoragePath(),
+                needTranslate,
+                targetLang,
+                sourceLang
         );
     }
 
     @Override
     @Transactional
     public BatchUploadResponse batchUploadAndCreateDocument(MultipartFile[] files, Long userId, boolean isVip) {
+        return batchUploadAndCreateDocument(files, userId, isVip, null, null);
+    }
+
+    @Override
+    @Transactional
+    public BatchUploadResponse batchUploadAndCreateDocument(MultipartFile[] files, Long userId, boolean isVip,
+            String targetLang, String sourceLang) {
+        // 判断是否需要翻译（在Service层处理业务逻辑）
+        boolean needTranslate = targetLang != null && !targetLang.isBlank();
         List<BatchUploadResponse.UploadItem> items = new ArrayList<>();
         int success = 0;
         int failed = 0;
@@ -165,6 +197,15 @@ public class DocumentServiceImpl implements DocumentService {
         batchRoot.setUpdatedAt(now);
         // 批量根文档的 rootId 就是自己
         batchRoot.setRootId(batchRootId);
+
+        // 处理批量上传的翻译参数
+        if (needTranslate && targetLang != null && !targetLang.isBlank()) {
+            batchRoot.setNeedTranslate(true);
+            batchRoot.setTargetLang(targetLang);
+            batchRoot.setSourceLang(sourceLang != null ? sourceLang : "auto");
+            batchRoot.setTranslateStatus("pending");
+        }
+
         documentMapper.insert(batchRoot);
 
         for (MultipartFile file : files) {
@@ -180,7 +221,10 @@ public class DocumentServiceImpl implements DocumentService {
                         fileResponse.getFileName(),
                         fileResponse.getFileSize(),
                         fileResponse.getFileType(),
-                        fileResponse.getStoragePath()
+                        fileResponse.getStoragePath(),
+                        needTranslate,
+                        targetLang,
+                        sourceLang
                 );
 
                 items.add(BatchUploadResponse.UploadItem.builder()

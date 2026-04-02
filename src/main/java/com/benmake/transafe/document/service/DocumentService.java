@@ -48,6 +48,19 @@ public interface DocumentService {
     DocumentDTO uploadAndCreateDocument(MultipartFile file, Long userId, boolean isVip);
 
     /**
+     * 上传文件并创建文档记录（支持翻译）
+     *
+     * @param file 上传的文件
+     * @param userId 用户ID
+     * @param isVip 是否为VIP
+     * @param targetLang 目标语言（可选，不传则不翻译）
+     * @param sourceLang 源语言
+     * @return 文档DTO
+     */
+    DocumentDTO uploadAndCreateDocument(MultipartFile file, Long userId, boolean isVip,
+            String targetLang, String sourceLang);
+
+    /**
      * 批量上传文件并创建文档记录
      *
      * @param files 上传的文件数组
@@ -56,6 +69,19 @@ public interface DocumentService {
      * @return 批量上传响应
      */
     BatchUploadResponse batchUploadAndCreateDocument(MultipartFile[] files, Long userId, boolean isVip);
+
+    /**
+     * 批量上传文件并创建文档记录（支持翻译）
+     *
+     * @param files 上传的文件数组
+     * @param userId 用户ID
+     * @param isVip 是否为VIP
+     * @param targetLang 目标语言（可选，不传则不翻译）
+     * @param sourceLang 源语言
+     * @return 批量上传响应
+     */
+    BatchUploadResponse batchUploadAndCreateDocument(MultipartFile[] files, Long userId, boolean isVip,
+            String targetLang, String sourceLang);
 
     /**
      * 获取文档详情

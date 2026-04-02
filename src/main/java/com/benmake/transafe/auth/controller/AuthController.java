@@ -10,7 +10,6 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -33,7 +32,7 @@ public class AuthController {
     @Operation(summary = "用户登录", description = "支持用户名、邮箱、手机号三种方式登录，获取JWT Token和用户信息")
     @SecurityRequirements
     @PostMapping("/login")
-    public ResponseEntity<ApiResponse<TokenResponse>> login(@Valid @RequestBody LoginRequest request) {
+    public ResponseEntity<ApiResponse<TokenResponse>> login(@RequestBody LoginRequest request) {
         TokenResponse response = authService.login(request);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
@@ -41,7 +40,7 @@ public class AuthController {
     @Operation(summary = "用户注册", description = "注册新用户账号")
     @SecurityRequirements
     @PostMapping("/register")
-    public ResponseEntity<ApiResponse<Void>> register(@Valid @RequestBody RegisterRequest request) {
+    public ResponseEntity<ApiResponse<Void>> register(@RequestBody RegisterRequest request) {
         authService.register(request);
         return ResponseEntity.ok(ApiResponse.success("注册成功", null));
     }
@@ -49,7 +48,7 @@ public class AuthController {
     @Operation(summary = "刷新Token", description = "使用refreshToken获取新的访问Token")
     @SecurityRequirements
     @PostMapping("/refresh")
-    public ResponseEntity<ApiResponse<TokenResponse>> refreshToken(@Valid @RequestBody RefreshTokenRequest request) {
+    public ResponseEntity<ApiResponse<TokenResponse>> refreshToken(@RequestBody RefreshTokenRequest request) {
         TokenResponse response = authService.refreshToken(request.getRefreshToken());
         return ResponseEntity.ok(ApiResponse.success(response));
     }

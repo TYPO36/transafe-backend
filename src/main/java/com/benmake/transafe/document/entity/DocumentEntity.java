@@ -137,6 +137,32 @@ public class DocumentEntity {
     @TableField("retry_count")
     private Integer retryCount = 0;
 
+    // ==================== 翻译状态 ====================
+
+    /**
+     * 是否需要翻译
+     */
+    @TableField("need_translate")
+    private Boolean needTranslate = false;
+
+    /**
+     * 翻译目标语言（如 "zh", "en"）
+     */
+    @TableField("target_lang")
+    private String targetLang;
+
+    /**
+     * 翻译源语言（默认 "auto" 自动检测）
+     */
+    @TableField("source_lang")
+    private String sourceLang;
+
+    /**
+     * 翻译状态: null/pending/translating/translated/failed
+     */
+    @TableField("translate_status")
+    private String translateStatus;
+
     // ==================== 审计字段 ====================
 
     /**

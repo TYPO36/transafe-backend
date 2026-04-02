@@ -98,4 +98,27 @@ public class DocumentIndexServiceImpl implements DocumentIndexService {
         this.esAvailable = true;
         log.info("ES服务已恢复，重新启用索引操作");
     }
+
+    @Override
+    public void updateTranslatedContent(String fileId, String translatedContent) {
+        if (!esAvailable) {
+            log.warn("ES服务不可用，跳过翻译内容更新: fileId={}", fileId);
+            return;
+        }
+
+        try {
+            DocumentIndex index = findById(fileId);
+            if (index == null) {
+                log.warn("文档索引不存在，无法更新翻译内容: fileId={}", fileId);
+                return;
+            }
+
+            index.setTranslatedContent(translatedContent);
+            elasticsearchOperations.save(index);
+            log.info("翻译内容更新成功: fileId={}, contentLength={}", fileId, translatedContent.length());
+        } catch (Exception e) {
+            log.error("翻译内容更新失败: fileId={}", fileId, e);
+            esAvailable = false;
+        }
+    }
 }

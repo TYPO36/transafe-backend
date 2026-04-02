@@ -7,7 +7,6 @@ import com.benmake.transafe.document.service.SearchService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -34,26 +33,32 @@ public class DocumentController {
     /**
      * 上传文件
      */
-    @Operation(summary = "上传文件", description = "上传单个文件并进行解析")
+    @Operation(summary = "上传文件", description = "上传单个文件并进行解析，可选择翻译")
     @PostMapping("/upload")
     public ResponseEntity<ApiResponse<DocumentDTO>> upload(
             @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "targetLang", required = false) String targetLang,
+            @RequestParam(value = "sourceLang", defaultValue = "auto") String sourceLang,
             @Parameter(hidden = true) @AuthenticationPrincipal Long userId) {
 
-        DocumentDTO result = documentService.uploadAndCreateDocument(file, userId, false);
+        DocumentDTO result = documentService.uploadAndCreateDocument(
+                file, userId, false, targetLang, sourceLang);
         return ResponseEntity.ok(ApiResponse.success(result));
     }
 
     /**
      * 批量上传文件
      */
-    @Operation(summary = "批量上传文件", description = "批量上传多个文件，建议≤100个")
+    @Operation(summary = "批量上传文件", description = "批量上传多个文件，建议≤100个，可选择翻译")
     @PostMapping("/upload/batch")
     public ResponseEntity<ApiResponse<BatchUploadResponse>> batchUpload(
             @RequestParam("files") MultipartFile[] files,
+            @RequestParam(value = "targetLang", required = false) String targetLang,
+            @RequestParam(value = "sourceLang", defaultValue = "auto") String sourceLang,
             @Parameter(hidden = true) @AuthenticationPrincipal Long userId) {
 
-        BatchUploadResponse response = documentService.batchUploadAndCreateDocument(files, userId, false);
+        BatchUploadResponse response = documentService.batchUploadAndCreateDocument(
+                files, userId, false, targetLang, sourceLang);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
@@ -88,7 +93,7 @@ public class DocumentController {
     @PostMapping("/{fileId}/retry")
     public ResponseEntity<ApiResponse<Void>> retry(
             @Parameter(description = "文件ID") @PathVariable String fileId,
-            @Valid @RequestBody RetryRequest request) {
+            @RequestBody RetryRequest request) {
 
         documentService.retryWithPassword(fileId, request.getPassword());
         return ResponseEntity.ok(ApiResponse.success("解析任务已提交", null));

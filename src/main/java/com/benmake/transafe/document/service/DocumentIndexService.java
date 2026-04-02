@@ -31,4 +31,12 @@ public interface DocumentIndexService {
      * @param fileId 文件唯一标识
      */
     void deleteById(String fileId);
+
+    /**
+     * 更新翻译内容
+     *
+     * @param fileId 文件唯一标识
+     * @param translatedContent 翻译后的内容
+     */
+    void updateTranslatedContent(String fileId, String translatedContent);
 }
