@@ -77,7 +77,7 @@ public class LocalFileStorageService {
     private static final DateTimeFormatter DATE_PATH_FORMATTER = DateTimeFormatter.ofPattern("yyyy/MM/dd");
 
     /**
-     * 上传文件到本地存储
+     * 上传文件到本地存储（仅存储物理文件，不创建document记录）
      *
      * <p>处理流程：
      * <ol>
@@ -85,8 +85,9 @@ public class LocalFileStorageService {
      *   <li>计算存储路径：user_{userId}/yyyy/MM/dd/{fileId}</li>
      *   <li>创建目标目录（如不存在）</li>
      *   <li>保存文件到磁盘</li>
-     *   <li>保存文件元数据到数据库（document 表）</li>
      * </ol>
+     *
+     * <p>注意：此方法仅负责物理文件存储，document记录由DocumentService统一管理</p>
      */
     @Transactional(rollbackFor = Exception.class)
     public FileUploadResponse uploadFile(MultipartFile file, Long userId) {
@@ -106,27 +107,10 @@ public class LocalFileStorageService {
                 Files.copy(inputStream, targetPath, StandardCopyOption.REPLACE_EXISTING);
             }
 
-            LocalDateTime now = LocalDateTime.now();
-            DocumentEntity doc = new DocumentEntity();
-            doc.setFileId(fileId);
-            doc.setUserId(userId);
-            doc.setFileName(originalFilename);
-            doc.setFileSize(file.getSize());
-            doc.setFileType(fileType);
-            doc.setStoragePath(relativePath);
-            doc.setStatus("UPLOADED");
-            doc.setParseStatus("pending");
-            doc.setIsAttachment(false);
-            doc.setPriority(0);
-            doc.setRetryCount(0);
-            doc.setParseErrorCode(0);
-            doc.setCreatedAt(now);
-            doc.setUpdatedAt(now);
-            documentMapper.insert(doc);
-
             log.info("文件上传成功: fileId={}, fileName={}, size={}, userId={}",
                     fileId, originalFilename, file.getSize(), userId);
 
+            // 返回文件元数据，不插入document记录（由DocumentService统一管理）
             return FileUploadResponse.builder()
                     .fileId(fileId)
                     .fileName(originalFilename)

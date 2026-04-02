@@ -30,7 +30,7 @@ public class AuthController {
 
     private final AuthService authService;
 
-    @Operation(summary = "用户登录", description = "通过用户名和密码登录，获取JWT Token")
+    @Operation(summary = "用户登录", description = "支持用户名、邮箱、手机号三种方式登录，获取JWT Token和用户信息")
     @SecurityRequirements
     @PostMapping("/login")
     public ResponseEntity<ApiResponse<TokenResponse>> login(@Valid @RequestBody LoginRequest request) {

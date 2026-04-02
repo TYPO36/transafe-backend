@@ -12,6 +12,12 @@ import org.springframework.stereotype.Service;
 /**
  * ES文档索引服务实现
  *
+ * <p>ES索引服务采用优雅降级策略：</p>
+ * <ul>
+ *   <li>ES服务可用时：正常索引文档内容</li>
+ *   <li>ES服务不可用时：记录错误日志，不影响主流程</li>
+ * </ul>
+ *
  * @author TYPO
  * @since 2026-03-31
  */
@@ -22,19 +28,37 @@ public class DocumentIndexServiceImpl implements DocumentIndexService {
 
     private final ElasticsearchOperations elasticsearchOperations;
 
+    /**
+     * ES服务是否可用的标志
+     */
+    private volatile boolean esAvailable = true;
+
     @Override
     public void save(DocumentIndex index) {
+        if (!esAvailable) {
+            log.warn("ES服务不可用，跳过索引保存: fileId={}", index.getFileId());
+            return;
+        }
+
         try {
             elasticsearchOperations.save(index);
             log.info("ES索引保存成功: fileId={}", index.getFileId());
         } catch (Exception e) {
-            log.error("ES索引保存失败: fileId={}", index.getFileId(), e);
-            throw new RuntimeException("ES索引保存失败: " + index.getFileId(), e);
+            log.error("ES索引保存失败: fileId={}, error={}", index.getFileId(), e.getMessage());
+            // 标记ES不可用，后续请求跳过ES操作
+            esAvailable = false;
+            // 不抛出异常，让文档解析流程继续
+            log.warn("ES服务已标记为不可用，后续将跳过索引操作");
         }
     }
 
     @Override
     public DocumentIndex findById(String fileId) {
+        if (!esAvailable) {
+            log.warn("ES服务不可用，跳过索引查询: fileId={}", fileId);
+            return null;
+        }
+
         try {
             NativeQuery query = NativeQuery.builder()
                     .withQuery(q -> q.term(t -> t.field("fileId").value(fileId)))
@@ -46,17 +70,32 @@ public class DocumentIndexServiceImpl implements DocumentIndexService {
             return null;
         } catch (Exception e) {
             log.error("ES索引查询失败: fileId={}", fileId, e);
+            esAvailable = false;
             return null;
         }
     }
 
     @Override
     public void deleteById(String fileId) {
+        if (!esAvailable) {
+            log.warn("ES服务不可用，跳过索引删除: fileId={}", fileId);
+            return;
+        }
+
         try {
             elasticsearchOperations.delete(DocumentIndex.builder().fileId(fileId).build());
             log.info("ES索引删除成功: fileId={}", fileId);
         } catch (Exception e) {
             log.error("ES索引删除失败: fileId={}", fileId, e);
+            esAvailable = false;
         }
+    }
+
+    /**
+     * 重置ES可用状态（供外部调用，如健康检查恢复后）
+     */
+    public void resetEsAvailable() {
+        this.esAvailable = true;
+        log.info("ES服务已恢复，重新启用索引操作");
     }
 }

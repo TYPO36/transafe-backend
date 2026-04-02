@@ -47,13 +47,13 @@ public class TaskEntity {
      * 任务类型：PARSE-解析任务，TRANSLATE-翻译任务
      */
     @TableField("task_type")
-    private String taskType;
+    private String taskType = "PARSE";
 
     /**
      * 任务状态：pending-待处理，processing-处理中，completed-已完成，failed-失败
      */
     @TableField("status")
-    private String status = "PENDING";
+    private String status = "pending";
 
     /**
      * 任务结果（JSON）

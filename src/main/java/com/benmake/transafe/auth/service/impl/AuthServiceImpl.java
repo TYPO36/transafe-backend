@@ -37,25 +37,25 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public TokenResponse login(LoginRequest request) {
-        String username = request.getUsername();
+        String account = request.getUsername();
 
         // 1. 检查账号是否被锁定
-        if (rateLimitService.isLocked(username)) {
-            long remainingTime = rateLimitService.getRemainingLockTime(username);
+        if (rateLimitService.isLocked(account)) {
+            long remainingTime = rateLimitService.getRemainingLockTime(account);
             throw new BusinessException(ErrorCode.ACCOUNT_LOCKED,
                 "账号已锁定，请 " + remainingTime + " 秒后重试");
         }
 
-        // 2. 查询用户
-        UserEntity user = userMapper.findByUsername(username)
-                .orElseThrow(() -> {
-                    rateLimitService.recordFailedAttempt(username);
-                    return new BusinessException(ErrorCode.LOGIN_FAILED);
-                });
+        // 2. 根据账号类型查询用户（支持用户名/邮箱/手机号登录）
+        UserEntity user = findUserByAccount(account);
+        if (user == null) {
+            rateLimitService.recordFailedAttempt(account);
+            throw new BusinessException(ErrorCode.LOGIN_FAILED, "账号或密码错误");
+        }
 
         // 3. 验证密码
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
-            long failCount = rateLimitService.recordFailedAttempt(username);
+            long failCount = rateLimitService.recordFailedAttempt(account);
             int remaining = rateLimitService.getMaxFailedAttempts() - (int) failCount;
             if (remaining > 0) {
                 throw new BusinessException(ErrorCode.LOGIN_FAILED,
@@ -72,7 +72,7 @@ public class AuthServiceImpl implements AuthService {
         }
 
         // 5. 登录成功，清除失败记录
-        rateLimitService.clearFailedAttempts(username);
+        rateLimitService.clearFailedAttempts(account);
 
         // 6. 生成Token
         String accessToken = jwtService.generateAccessToken(user.getId(), user.getUsername());
@@ -86,14 +86,56 @@ public class AuthServiceImpl implements AuthService {
 
         log.info("用户登录成功: userId={}, username={}", user.getId(), user.getUsername());
 
+        return buildTokenResponse(user, accessToken, refreshToken);
+    }
+
+    /**
+     * 根据账号类型查询用户
+     *
+     * <p>支持三种登录方式：</p>
+     * <ul>
+     *   <li>邮箱格式（包含@）：使用邮箱查询</li>
+     *   <li>手机号格式（11位数字）：使用手机号查询</li>
+     *   <li>其他格式：使用用户名查询</li>
+     * </ul>
+     *
+     * @param account 登录账号（用户名/邮箱/手机号）
+     * @return 用户实体，不存在则返回 null
+     */
+    private UserEntity findUserByAccount(String account) {
+        // 判断是否为邮箱格式
+        if (account.contains("@")) {
+            return userMapper.findByEmail(account).orElse(null);
+        }
+        // 判断是否为手机号格式（11位数字）
+        if (account.matches("^\\d{11}$")) {
+            return userMapper.findByPhone(account).orElse(null);
+        }
+        // 默认使用用户名查询
+        return userMapper.findByUsername(account).orElse(null);
+    }
+
+    /**
+     * 构建Token响应
+     *
+     * @param user 用户实体
+     * @param accessToken 访问令牌
+     * @param refreshToken 刷新令牌
+     * @return Token响应
+     */
+    private TokenResponse buildTokenResponse(UserEntity user, String accessToken, String refreshToken) {
         return TokenResponse.builder()
                 .accessToken(accessToken)
                 .refreshToken(refreshToken)
                 .expiresIn(7200L)
                 .userInfo(TokenResponse.UserInfo.builder()
                         .userId(user.getId())
+                        .username(user.getUsername())
                         .nickname(user.getNickname())
                         .email(user.getEmail())
+                        .phone(user.getPhone())
+                        .avatar(user.getAvatar())
+                        .role(user.getRole())
                         .membershipLevel(user.getMembershipLevel())
                         .build())
                 .build();
@@ -167,17 +209,7 @@ public class AuthServiceImpl implements AuthService {
 
         log.info("Token刷新成功: userId={}", userId);
 
-        return TokenResponse.builder()
-                .accessToken(newAccessToken)
-                .refreshToken(newRefreshToken)
-                .expiresIn(7200L)
-                .userInfo(TokenResponse.UserInfo.builder()
-                        .userId(user.getId())
-                        .nickname(user.getNickname())
-                        .email(user.getEmail())
-                        .membershipLevel(user.getMembershipLevel())
-                        .build())
-                .build();
+        return buildTokenResponse(user, newAccessToken, newRefreshToken);
     }
 
     @Override

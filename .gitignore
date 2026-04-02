@@ -90,3 +90,6 @@ jacoco.exec
 data/
 elasticsearch/
 es-plugins/
+
+### 上传的文件 ###
+files/

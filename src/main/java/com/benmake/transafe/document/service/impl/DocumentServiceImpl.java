@@ -84,6 +84,7 @@ public class DocumentServiceImpl implements DocumentService {
         doc.setFileSize(fileSize);
         doc.setFileType(fileType);
         doc.setStoragePath(storagePath);
+        doc.setStatus("UPLOADED");  // 文件已上传状态
         doc.setParseStatus(ParseStatus.PENDING);
         doc.setIsAttachment(false);
         doc.setPriority(isVip ? 1 : 0);

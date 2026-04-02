@@ -49,7 +49,8 @@ public class TaskServiceImpl implements TaskService {
         task.setTaskId(taskProducer.generateTaskId());
         task.setUserId(userId);
         task.setDocumentId(doc.getId());
-        task.setStatus("PENDING");
+        task.setTaskType("PARSE");  // 设置任务类型
+        task.setStatus("pending");   // 使用小写状态值，与数据库保持一致
         task.setCreatedAt(LocalDateTime.now());
 
         taskMapper.insert(task);
